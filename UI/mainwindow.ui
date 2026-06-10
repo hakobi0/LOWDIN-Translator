@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1188</width>
+    <height>958</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>LOWDIN Translator Alpha</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QTabWidget" name="tabWidget">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>0</y>
+      <width>1161</width>
+      <height>881</height>
+     </rect>
+    </property>
+    <property name="currentIndex">
+     <number>2</number>
+    </property>
+    <widget class="QWidget" name="Input">
+     <attribute name="title">
+      <string>Input</string>
+     </attribute>
+     <widget class="QTextEdit" name="input_textedit">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1161</width>
+        <height>851</height>
+       </rect>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="Converted_Input">
+     <attribute name="title">
+      <string>LOWDIN Input</string>
+     </attribute>
+     <widget class="QTextEdit" name="translated_textedit">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1161</width>
+        <height>851</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="Output">
+     <attribute name="title">
+      <string>Output</string>
+     </attribute>
+     <widget class="QTextEdit" name="output_textedit">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1161</width>
+        <height>851</height>
+       </rect>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </widget>
+   </widget>
+   <widget class="QCommandLinkButton" name="run_button">
+    <property name="geometry">
+     <rect>
+      <x>1000</x>
+      <y>880</y>
+      <width>172</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Run Converted Input</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1188</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionOpen_File"/>
+    <addaction name="actionSave"/>
+    <addaction name="actionSave_As"/>
+    <addaction name="separator"/>
+    <addaction name="actionExit"/>
+    <addaction name="separator"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionConversion_Dialog"/>
+    <addaction name="actionAdd_Electron"/>
+    <addaction name="actionAdd_Particle"/>
+   </widget>
+   <widget class="QMenu" name="menuGeometry">
+    <property name="title">
+     <string>Geometry</string>
+    </property>
+    <addaction name="actionAdd_Geometry"/>
+    <addaction name="actionPlot_Geometry"/>
+    <addaction name="separator"/>
+    <addaction name="actionZ_Matrix_Representation"/>
+   </widget>
+   <widget class="QMenu" name="menuRun">
+    <property name="title">
+     <string>Run</string>
+    </property>
+    <widget class="QMenu" name="menuRun_Test">
+     <property name="title">
+      <string>Run Test</string>
+     </property>
+    </widget>
+    <addaction name="actionRun_Calculation"/>
+    <addaction name="menuRun_Test"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuGeometry"/>
+   <addaction name="menuRun"/>
+  </widget>
+  <action name="actionOpen_File">
+   <property name="text">
+    <string>Open File</string>
+   </property>
+  </action>
+  <action name="actionAdd_Electron">
+   <property name="text">
+    <string>Add Electron</string>
+   </property>
+  </action>
+  <action name="actionAdd_Particle">
+   <property name="text">
+    <string>Add Positron</string>
+   </property>
+  </action>
+  <action name="actionPlot_Geometry">
+   <property name="text">
+    <string>Plot Geometry</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionSave_File_As">
+   <property name="text">
+    <string>Save File As</string>
+   </property>
+  </action>
+  <action name="actionSave">
+   <property name="text">
+    <string>Save</string>
+   </property>
+  </action>
+  <action name="actionSave_As">
+   <property name="text">
+    <string>Save As</string>
+   </property>
+  </action>
+  <action name="actionRun_Calculation">
+   <property name="text">
+    <string>Run Calculation</string>
+   </property>
+  </action>
+  <action name="actionTest">
+   <property name="text">
+    <string>Test</string>
+   </property>
+  </action>
+  <action name="actionAdd_Geometry">
+   <property name="text">
+    <string>Add Geometry</string>
+   </property>
+  </action>
+  <action name="actionConversion_Dialog">
+   <property name="text">
+    <string>Conversion Dialog</string>
+   </property>
+  </action>
+  <action name="actionZ_Matrix_Representation">
+   <property name="text">
+    <string>Z-Matrix </string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+
+# Temporary/test outputs
+*.aux
+*.out
+temp.*
+T/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PDF manual (too large for repo)
+*.pdf
