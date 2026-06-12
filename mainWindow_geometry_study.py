@@ -263,11 +263,12 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
 
         self.input_textedit.setPlainText(contenido)
 
-        # .lowdin files are already in LOWDIN format, show directly
+        # .lowdin files: show directly and parse for conversion dialog editing
         if archivo.endswith(".lowdin"):
             self.translated_textedit.setPlainText(contenido)
             self.current_file = archivo
             self.tabWidget.setCurrentIndex(1)
+            self.last_conversion = self._parse_lowdin(contenido, archivo)
             return
 
         parser = parserclass.Parser(contenido)
@@ -434,6 +435,73 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                 ))
         return atoms
 
+    def _parse_lowdin(self, contenido, archivo):
+        """Extract conversion parameters from a .lowdin file."""
+        import re
+
+        # Title
+        titulo_match = re.search(r"SYSTEM_DESCRIPTION='([^']*)'", contenido)
+        titulo = titulo_match.group(1) if titulo_match else os.path.basename(archivo)
+
+        # Method
+        metodo_match = re.search(r'method\s*=\s*"([^"]+)"', contenido)
+        metodo = metodo_match.group(1) if metodo_match else "RHF"
+
+        # Charge and multiplicity
+        charge_match = re.search(r'charge\s*=\s*(-?\d+)', contenido)
+        mult_match = re.search(r'multiplicity\s*=\s*(\d+)', contenido)
+        carga = int(charge_match.group(1)) if charge_match else 0
+        mult = int(mult_match.group(1)) if mult_match else 1
+
+        # Parse geometry block to extract basis sets and atoms
+        geom_match = re.search(r'GEOMETRY\s*(.*?)\s*END GEOMETRY', contenido, re.DOTALL)
+        geometria_bruta = ""
+        atomos = []
+        base_elec = ""
+        base_proton = "dirac"
+        base_positron = ""
+
+        if geom_match:
+            geom_lines = geom_match.group(1).strip().splitlines()
+            nuclear_lines = []
+
+            for line in geom_lines:
+                parts = line.split()
+                if len(parts) < 5:
+                    continue
+                label, basis = parts[0], parts[1]
+                x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
+
+                if label.startswith("e-("):
+                    # Electron line: e-(SYMBOL) → extract electronic basis
+                    if not base_elec:
+                        base_elec = basis
+                elif label.startswith("e+"):
+                    if not base_positron:
+                        base_positron = basis
+                else:
+                    # Nuclear line
+                    base_proton = basis
+                    symbol = label.capitalize()
+                    atomos.append((symbol, x, y, z))
+                    nuclear_lines.append(f"{symbol} {x} {y} {z}")
+
+            geometria_bruta = "\n".join(nuclear_lines)
+
+        self.current_atoms = atomos
+
+        return {
+            "metodo": metodo,
+            "base": base_elec,
+            "base_positron": base_positron,
+            "base_proton": base_proton,
+            "carga": carga,
+            "mult": mult,
+            "geometria_bruta": geometria_bruta,
+            "titulo": titulo,
+            "atomos": atomos[:],
+        }
+
     def run_multiwfn(self, script_name):
         """Run a Multiwfn analysis using the given input script."""
         # Ask for molden file
@@ -459,7 +527,17 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             with open(script_path, "r") as f:
                 script_input = f.read()
 
-            # For orbital plot, ask which orbital to plot
+            plane_scripts = {
+                "electron_density.txt": 4,
+                "esp_map.txt": 4,
+                "elf_map.txt": 4,
+                "lol_map.txt": 4,
+                "orbital_plot.txt": 5,  # shifted by orbital selector line
+            }
+
+            lines = script_input.splitlines()
+
+            # For orbital plot, ask which orbital and graph type
             if script_name == "orbital_plot.txt":
                 orbital, accepted = QInputDialog.getText(
                     self,
@@ -469,10 +547,42 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                 )
                 if not accepted:
                     return
-                orbital = orbital.strip() or "h"
-                lines = script_input.splitlines()
-                lines[2] = orbital  # Line 3 (index 2) is the orbital selector
-                script_input = "\n".join(lines) + "\n"
+                lines[2] = orbital.strip() or "h"
+
+                graph_type, accepted = QInputDialog.getItem(
+                    self,
+                    "Graph Type",
+                    "Select graph type:",
+                    [
+                        "1 - Contour map",
+                        "2 - Color-filled map",
+                        "3 - Contour + color-filled",
+                        "4 - Gradient lines",
+                        "5 - Vector field",
+                    ],
+                    1,  # Default: color-filled
+                    False,
+                )
+                if not accepted:
+                    return
+                lines[3] = graph_type[0]  # Extract "1"-"5"
+
+            # For all 2D map scripts, ask which plane
+            if script_name in plane_scripts:
+                plane, accepted = QInputDialog.getItem(
+                    self,
+                    "Plane Selection",
+                    "Select the plane to plot:",
+                    ["XY (1)", "XZ (2)", "YZ (3)"],
+                    1,  # Default: XZ
+                    False,
+                )
+                if not accepted:
+                    return
+                plane_index = plane_scripts[script_name]
+                lines[plane_index] = plane[plane.index("(") + 1]  # Extract "1", "2", or "3"
+
+            script_input = "\n".join(lines) + "\n"
 
             multiwfn_exe = "Multiwfn"
             for candidate in [
