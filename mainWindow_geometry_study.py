@@ -5,7 +5,7 @@ import subprocess
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QFileDialog, QMainWindow, QMessageBox,
+    QApplication, QDialog, QFileDialog, QInputDialog, QMainWindow, QMessageBox,
     QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox
 )
 
@@ -222,6 +222,24 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         if hasattr(self, 'actionZ_Matrix_Representation'):
             self.actionZ_Matrix_Representation.triggered.connect(self.show_zmatrix)
 
+        # Multiwfn analysis actions
+        if hasattr(self, 'actionElectron_Density_map'):
+            self.actionElectron_Density_map.triggered.connect(
+                lambda: self.run_multiwfn("electron_density.txt")
+            )
+        if hasattr(self, 'actionESP_map'):
+            self.actionESP_map.triggered.connect(
+                lambda: self.run_multiwfn("esp_map.txt")
+            )
+        if hasattr(self, 'actionELF_map'):
+            self.actionELF_map.triggered.connect(
+                lambda: self.run_multiwfn("elf_map.txt")
+            )
+        if hasattr(self, 'actionOrbital_plot'):
+            self.actionOrbital_plot.triggered.connect(
+                lambda: self.run_multiwfn("orbital_plot.txt")
+            )
+
         # Connect run button if it exists
         if hasattr(self, 'run_button'):
             self.run_button.clicked.connect(self.run_lowdin)
@@ -415,6 +433,136 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                     float(parts[3]),
                 ))
         return atoms
+
+    def run_multiwfn(self, script_name):
+        """Run a Multiwfn analysis using the given input script."""
+        # Ask for molden file
+        molden_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Molden file",
+            "",
+            "Molden Files (*.molden *.mld);;All Files (*)",
+        )
+        if not molden_file:
+            return
+
+        scripts_dir = os.path.join(os.path.dirname(__file__), "multiwfn_scripts")
+        script_path = os.path.join(scripts_dir, script_name)
+
+        if not os.path.exists(script_path):
+            QMessageBox.critical(self, "Error", f"Script not found:\n{script_path}")
+            return
+
+        work_dir = os.path.dirname(molden_file)
+
+        try:
+            with open(script_path, "r") as f:
+                script_input = f.read()
+
+            # For orbital plot, ask which orbital to plot
+            if script_name == "orbital_plot.txt":
+                orbital, accepted = QInputDialog.getText(
+                    self,
+                    "Orbital Selection",
+                    "Enter orbital number to plot\n(or 'h' for HOMO, 'l' for LUMO):",
+                    text="h",
+                )
+                if not accepted:
+                    return
+                orbital = orbital.strip() or "h"
+                lines = script_input.splitlines()
+                lines[2] = orbital  # Line 3 (index 2) is the orbital selector
+                script_input = "\n".join(lines) + "\n"
+
+            multiwfn_exe = "Multiwfn"
+            for candidate in [
+                "Multiwfn",
+                os.path.expanduser("~/Multiwfn/Multiwfn"),
+            ]:
+                if os.path.isfile(candidate) or any(
+                    os.path.isfile(os.path.join(p, candidate))
+                    for p in os.environ.get("PATH", "").split(os.pathsep)
+                ):
+                    multiwfn_exe = candidate
+                    break
+
+            result = subprocess.run(
+                [multiwfn_exe, molden_file, "-silent"],
+                input=script_input,
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+
+            # Look for PNG output in the working directory
+            png_candidates = ["surfdens.png", "ELF.png", "orb.png"]
+            png_found = None
+            for candidate in png_candidates:
+                path = os.path.join(work_dir, candidate)
+                if os.path.exists(path):
+                    png_found = path
+                    break
+
+            if png_found:
+                self._show_image(png_found, script_name)
+            else:
+                # No PNG - show text output instead
+                output = result.stdout or result.stderr or "No output generated."
+                from PyQt6.QtWidgets import QTextEdit, QPushButton, QVBoxLayout
+                from PyQt6.QtGui import QFont
+                dialog = QDialog(self)
+                dialog.setWindowTitle(f"Multiwfn - {script_name}")
+                dialog.resize(700, 500)
+                layout = QVBoxLayout(dialog)
+                text_edit = QTextEdit()
+                text_edit.setReadOnly(True)
+                text_edit.setPlainText(output)
+                text_edit.setFont(QFont("Courier New", 9))
+                layout.addWidget(text_edit)
+                btn = QPushButton("Close")
+                btn.clicked.connect(dialog.close)
+                layout.addWidget(btn)
+                dialog.exec()
+
+        except FileNotFoundError:
+            QMessageBox.critical(
+                self,
+                "Error",
+                "Multiwfn command not found.\n\nMake sure Multiwfn is installed and in your PATH."
+            )
+        except subprocess.TimeoutExpired:
+            QMessageBox.critical(self, "Timeout", "Multiwfn calculation timed out (>5 min)")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to run Multiwfn:\n{e}")
+
+    def _show_image(self, image_path, title=""):
+        """Display a PNG image in a resizable dialog."""
+        from PyQt6.QtWidgets import QScrollArea, QLabel, QPushButton, QVBoxLayout
+        from PyQt6.QtGui import QPixmap
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Multiwfn - {title}")
+        dialog.resize(800, 700)
+
+        layout = QVBoxLayout(dialog)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+
+        label = QLabel()
+        pixmap = QPixmap(image_path)
+        label.setPixmap(pixmap)
+        label.setScaledContents(False)
+
+        scroll.setWidget(label)
+        layout.addWidget(scroll)
+
+        btn = QPushButton("Close")
+        btn.clicked.connect(dialog.close)
+        layout.addWidget(btn)
+
+        dialog.exec()
 
     def save_file(self):
         """Save the translated LOWDIN input to current file."""

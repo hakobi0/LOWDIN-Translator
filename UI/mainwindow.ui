@@ -139,8 +139,18 @@
       <string>Run Test</string>
      </property>
     </widget>
+    <widget class="QMenu" name="menuRun_openWFN">
+     <property name="title">
+      <string>Run openWFN </string>
+     </property>
+     <addaction name="actionElectron_Density_map"/>
+     <addaction name="actionESP_map"/>
+     <addaction name="actionELF_map"/>
+     <addaction name="actionOrbital_plot"/>
+    </widget>
     <addaction name="actionRun_Calculation"/>
     <addaction name="menuRun_Test"/>
+    <addaction name="menuRun_openWFN"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -210,6 +220,26 @@
   <action name="actionZ_Matrix_Representation">
    <property name="text">
     <string>Z-Matrix </string>
+   </property>
+  </action>
+  <action name="actionElectron_Density_map">
+   <property name="text">
+    <string>Electron Density map</string>
+   </property>
+  </action>
+  <action name="actionESP_map">
+   <property name="text">
+    <string>ESP map</string>
+   </property>
+  </action>
+  <action name="actionOrbital_plot">
+   <property name="text">
+    <string>Orbital plot</string>
+   </property>
+  </action>
+  <action name="actionELF_map">
+   <property name="text">
+    <string>ELF map</string>
    </property>
   </action>
  </widget>
