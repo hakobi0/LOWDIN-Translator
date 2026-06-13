@@ -146,6 +146,7 @@
      <addaction name="actionElectron_Density_map"/>
      <addaction name="actionESP_map"/>
      <addaction name="actionELF_map"/>
+     <addaction name="actionLOL_map"/>
      <addaction name="actionOrbital_plot"/>
     </widget>
     <addaction name="actionRun_Calculation"/>
@@ -224,7 +225,7 @@
   </action>
   <action name="actionElectron_Density_map">
    <property name="text">
-    <string>Electron Density map</string>
+    <string>ELD map</string>
    </property>
   </action>
   <action name="actionESP_map">
@@ -240,6 +241,11 @@
   <action name="actionELF_map">
    <property name="text">
     <string>ELF map</string>
+   </property>
+  </action>
+  <action name="actionLOL_map">
+   <property name="text">
+    <string>LOL map</string>
    </property>
   </action>
  </widget>

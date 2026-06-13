@@ -32,23 +32,28 @@ class GeometryDialogStudy(QDialog):
         self.pending_symbol = None
 
         self.plotter = self.ui.pyvista_widget
-        self.plotter.setCursor(Qt.CursorShape.CrossCursor) # Sets the cursor as cross
-        self.plotter.enable_point_picking( # I dont know how this work but I need to change it
-            callback=self._handle_point_picked,
-            show_message=False,
-            show_point=True,
-            point_size=14,
-            color="yellow",
-            use_picker=False,
-            left_clicking=True,
-            pickable_window=True,
-        )
-
+        self.plotter.setCursor(Qt.CursorShape.CrossCursor)
+        self.plotter.enable_trackball_style()
         self.plotter.add_camera_orientation_widget()
 
-        # Enable context menu on right-click
+        # Selection mode state
+        self._selection_mode = False
+        self._rb_start = None
+        self._rb_active = False
+        self._sel_observer_tags = []
+        self._first_draw = True
+        self._saved_style = None
+
+        # 'S' key toggles selection mode from inside the plotter
+        self.plotter.add_key_event('s', self._toggle_selection_mode)
+
+        # Right-click context menu via Qt (works independently of VTK)
         self.plotter.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.plotter.customContextMenuRequested.connect(self._show_context_menu)
+
+        # Make selection button checkable so it shows active state
+        self.ui.selectionbutton.setCheckable(True)
+        self.ui.selectionbutton.clicked.connect(self._toggle_selection_mode)
 
         self.ui.addatombutton.clicked.connect(self._start_add_mode)
         self.ui.removeatoms.clicked.connect(self._start_remove_mode)
@@ -84,8 +89,13 @@ class GeometryDialogStudy(QDialog):
 
         self.pending_action = "add"
         self.pending_symbol = atom
+
+        # Enter selection mode so the click is intercepted by the picker
+        if not self._selection_mode:
+            self._toggle_selection_mode()
+
         self._update_info(
-            f"Add mode active.\nSelected atom: {atom}\nClick in the visualizer to place the atom."
+            f"Add mode active.\nSelected atom: {atom}\nClick anywhere in the visualizer to place it."
         )
 
     def _start_remove_mode(self):
@@ -93,33 +103,110 @@ class GeometryDialogStudy(QDialog):
             QMessageBox.information(self, "No atoms", "There are no atoms to remove.")
             return
 
+        # If atoms are already selected, remove them immediately
+        if self.geometry_editor.selected_indices:
+            indices = sorted(self.geometry_editor.selected_indices, reverse=True)
+            for idx in indices:
+                self.geometry_editor.remove_atom(idx)
+            self.geometry_editor.clear_selection()
+            self._redraw()
+            return
+
+        # Otherwise enter selection mode and ask the user to click an atom
         self.pending_action = "remove"
         self.pending_symbol = None
-        self._update_info("Remove mode active.\nClick near an atom to delete it.")
+        if not self._selection_mode:
+            self._toggle_selection_mode()
+        self._update_info("Remove mode active.\nClick an atom or rubber-band select, then click Remove Atoms again.")
 
-    def _handle_point_picked(self, point):
-        if point is None or not self.pending_action:
+    # -------------------------------------------------------- selection mode
+    def _toggle_selection_mode(self):
+        self._selection_mode = not self._selection_mode
+        self.ui.selectionbutton.setChecked(self._selection_mode)
+        iren = self.plotter.iren.interactor
+
+        if self._selection_mode:
+            self.plotter.setCursor(Qt.CursorShape.CrossCursor)
+            self._update_info("Selection mode ON  (S to exit)\nLeft-drag to rubber-band select.\nShift keeps existing selection.")
+            # Swap trackball out for a null style so it never rotates
+            import vtk
+            self._saved_style = iren.GetInteractorStyle()
+            null_style = vtk.vtkInteractorStyleUser()
+            iren.SetInteractorStyle(null_style)
+            self._sel_observer_tags = [
+                iren.AddObserver("LeftButtonPressEvent",   self._sel_press),
+                iren.AddObserver("MouseMoveEvent",         self._sel_move),
+                iren.AddObserver("LeftButtonReleaseEvent", self._sel_release),
+            ]
+        else:
+            self.plotter.setCursor(Qt.CursorShape.ArrowCursor)
+            for tag in self._sel_observer_tags:
+                iren.RemoveObserver(tag)
+            self._sel_observer_tags = []
+            # Restore trackball
+            iren.SetInteractorStyle(self._saved_style)
+            self._saved_style = None
+            self._rb_start = None
+            self._rb_active = False
+            self._redraw()
+
+    def _sel_press(self, obj, event):
+        self._rb_start = self.plotter.iren.interactor.GetEventPosition()
+        self._rb_active = False
+        # Do NOT forward — blocks trackball rotation while in selection mode
+
+    def _sel_move(self, obj, event):
+        if self._rb_start is None:
             return
+        x, y = self.plotter.iren.interactor.GetEventPosition()
+        dx = x - self._rb_start[0]
+        dy = y - self._rb_start[1]
+        if not self._rb_active and (abs(dx) > 4 or abs(dy) > 4):
+            self._rb_active = True
+        # Do NOT forward — suppress all camera movement in selection mode
 
-        x, y, z = point
+    def _sel_release(self, obj, event):
+        if self._rb_start is None:
+            return
+        iren = self.plotter.iren.interactor
+        x, y = iren.GetEventPosition()
 
-        if self.pending_action == "add":
-            self.geometry_editor.add_atom(self.pending_symbol, x, y, z)
+        # --- add mode: place atom at clicked 3-D position then exit ---
+        if self.pending_action == "add" and not self._rb_active:
+            picker = iren.GetPicker()
+            picker.Pick(x, y, 0, self.plotter.renderer)
+            pos = picker.GetPickPosition()
+            self.geometry_editor.add_atom(self.pending_symbol, *pos)
             self.pending_action = None
             self.pending_symbol = None
-            self._redraw()
+            self._rb_start = None
+            self._rb_active = False
+            self._toggle_selection_mode()  # exit selection mode
             return
 
-        if self.pending_action == "remove":
-            removed = self.geometry_editor.remove_nearest_atom(x, y, z)
-            if removed is None:
-                QMessageBox.information(
-                    self,
-                    "No atom selected",
-                    "Click closer to an existing atom to remove it.",
-                )
-            self.pending_action = None
-            self._redraw()
+        # --- normal selection ---
+        if not iren.GetShiftKey():
+            self.geometry_editor.clear_selection()
+
+        if self._rb_active:
+            hit = self.geometry_editor.indices_in_screen_rect(
+                self.plotter.renderer,
+                self._rb_start[0], self._rb_start[1],
+                x, y,
+            )
+            self.geometry_editor.select_indices(hit)
+        else:
+            picker = iren.GetPicker()
+            picker.Pick(x, y, 0, self.plotter.renderer)
+            if picker.GetActor() is not None:
+                pos = picker.GetPickPosition()
+                idx = self.geometry_editor.find_nearest_index(*pos)
+                if idx is not None:
+                    self.geometry_editor.toggle_selection(idx)
+
+        self._rb_start = None
+        self._rb_active = False
+        self._redraw()
 
     def _optimize_geometry(self):
         """Run RDKit optimization on current geometry."""
@@ -193,7 +280,8 @@ class GeometryDialogStudy(QDialog):
         return self.geometry_editor.get_geometry()
 
     def _redraw(self):
-        self.geometry_editor.render_in_plotter(self.plotter)
+        self.geometry_editor.render_in_plotter(self.plotter, reset_camera=self._first_draw)
+        self._first_draw = False
         self.get_atoms()
         self._update_info()
 
@@ -207,7 +295,6 @@ class GeometryDialogStudy(QDialog):
         return self.geometry_editor.to_geometria_bruta()
 
     def _show_context_menu(self, position):
-        """Show context menu on right-click in the plotter."""
         menu = QMenu(self)
 
         # Center to Origin action

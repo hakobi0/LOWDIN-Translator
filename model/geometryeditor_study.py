@@ -44,6 +44,8 @@ BOND_THRESHOLD = 1.8
 class GeometryEditor:
     def __init__(self, geometry=None):
         self.geometry = []
+        self.selected_indices = set()
+        self._selection_order = []   # tracks click order for angle/dihedral
         if geometry:
             self.set_geometry(geometry)
 
@@ -106,10 +108,78 @@ class GeometryEditor:
             for symbol, x, y, z in self.geometry
         )
 
+    @staticmethod
+    def _angle(p1, p2, p3):
+        """Angle at p2 in degrees."""
+        v1 = tuple(p1[k] - p2[k] for k in range(3))
+        v2 = tuple(p3[k] - p2[k] for k in range(3))
+        dot = sum(a * b for a, b in zip(v1, v2))
+        n1 = math.sqrt(sum(a * a for a in v1))
+        n2 = math.sqrt(sum(a * a for a in v2))
+        if n1 < 1e-10 or n2 < 1e-10:
+            return 0.0
+        return math.degrees(math.acos(max(-1.0, min(1.0, dot / (n1 * n2)))))
+
     def summary_text(self):
         lines = [f"Atoms: {len(self.geometry)}", ""]
         for index, (symbol, x, y, z) in enumerate(self.geometry, start=1):
-            lines.append(f"{index:02d}. {symbol}  {x:.6f}  {y:.6f}  {z:.6f}")
+            marker = ">> " if (index - 1) in self.selected_indices else "   "
+            lines.append(f"{marker}{index:02d}. {symbol}  {x:.6f}  {y:.6f}  {z:.6f}")
+
+        # Use selection order so the user controls which atom is the vertex
+        sel = self._selection_order
+
+        if len(sel) == 2:
+            i, j = sel
+            p1 = self.geometry[i][1:]
+            p2 = self.geometry[j][1:]
+            dist = math.dist(p1, p2)
+            s1, s2 = self.geometry[i][0], self.geometry[j][0]
+            lines += [
+                "",
+                f"Distance  {s1}({i+1})-{s2}({j+1}): {dist:.4f} Å",
+            ]
+
+        elif len(sel) == 3:
+            i, j, k = sel          # j is the vertex (selected second)
+            p1 = self.geometry[i][1:]
+            p2 = self.geometry[j][1:]
+            p3 = self.geometry[k][1:]
+            d_ij = math.dist(p1, p2)
+            d_jk = math.dist(p2, p3)
+            angle = self._angle(p1, p2, p3)
+            s1, s2, s3 = self.geometry[i][0], self.geometry[j][0], self.geometry[k][0]
+            lines += [
+                "",
+                f"Distance  {s1}({i+1})-{s2}({j+1}): {d_ij:.4f} Å",
+                f"Distance  {s2}({j+1})-{s3}({k+1}): {d_jk:.4f} Å",
+                f"Angle     {s1}({i+1})-{s2}({j+1})-{s3}({k+1}): {angle:.2f}°",
+            ]
+
+        elif len(sel) == 4:
+            i, j, k, l = sel      # dihedral along j-k bond, i and l are the ends
+            p1 = np.array(self.geometry[i][1:])
+            p2 = np.array(self.geometry[j][1:])
+            p3 = np.array(self.geometry[k][1:])
+            p4 = np.array(self.geometry[l][1:])
+            d_ij = math.dist(p1, p2)
+            d_jk = math.dist(p2, p3)
+            d_kl = math.dist(p3, p4)
+            a_ijk = self._angle(p1, p2, p3)
+            a_jkl = self._angle(p2, p3, p4)
+            dihedral = self._calculate_dihedral(p1, p2, p3, p4)
+            s1, s2 = self.geometry[i][0], self.geometry[j][0]
+            s3, s4 = self.geometry[k][0], self.geometry[l][0]
+            lines += [
+                "",
+                f"Distance  {s1}({i+1})-{s2}({j+1}): {d_ij:.4f} Å",
+                f"Distance  {s2}({j+1})-{s3}({k+1}): {d_jk:.4f} Å",
+                f"Distance  {s3}({k+1})-{s4}({l+1}): {d_kl:.4f} Å",
+                f"Angle     {s1}({i+1})-{s2}({j+1})-{s3}({k+1}): {a_ijk:.2f}°",
+                f"Angle     {s2}({j+1})-{s3}({k+1})-{s4}({l+1}): {a_jkl:.2f}°",
+                f"Dihedral  {s1}({i+1})-{s2}({j+1})-{s3}({k+1})-{s4}({l+1}): {dihedral:.2f}°",
+            ]
+
         return "\n".join(lines)
 
     def optimize_geometry(self, charge=0, method="UFF", max_iters=1000):
@@ -415,26 +485,81 @@ class GeometryEditor:
 
         return sign * angle
 
-    def render_in_plotter(self, plotter):
-        plotter.clear()
-        plotter.show_grid() # It makes me dizzy so no grid at the moment
-        plotter.set_background("black")
-        plotter.enable_trackball_style()
-        plotter.camera_position = 'xy'
+    def toggle_selection(self, index):
+        if index in self.selected_indices:
+            self.selected_indices.discard(index)
+            self._selection_order = [i for i in self._selection_order if i != index]
+        else:
+            self.selected_indices.add(index)
+            self._selection_order.append(index)
 
+    def select_indices(self, indices):
+        for idx in indices:
+            if idx not in self.selected_indices:
+                self.selected_indices.add(idx)
+                self._selection_order.append(idx)
+
+    def clear_selection(self):
+        self.selected_indices.clear()
+        self._selection_order.clear()
+
+    def find_nearest_index(self, x, y, z):
+        """Return the index of the atom nearest to (x, y, z), or None."""
+        if not self.geometry:
+            return None
+        picked = (float(x), float(y), float(z))
+        best_index = min(
+            range(len(self.geometry)),
+            key=lambda i: math.dist(picked, self.geometry[i][1:])
+        )
+        return best_index
+
+    def indices_in_screen_rect(self, renderer, x1, y1, x2, y2):
+        """Return atom indices whose projected screen coords fall inside the rectangle."""
+        min_x, max_x = min(x1, x2), max(x1, x2)
+        min_y, max_y = min(y1, y2), max(y1, y2)
+        inside = []
+        for idx, (_, ax, ay, az) in enumerate(self.geometry):
+            renderer.SetWorldPoint(ax, ay, az, 1.0)
+            renderer.WorldToDisplay()
+            sx, sy, _ = renderer.GetDisplayPoint()
+            if min_x <= sx <= max_x and min_y <= sy <= max_y:
+                inside.append(idx)
+        return inside
+
+    def render_in_plotter(self, plotter, reset_camera=False):
+        camera = plotter.camera.copy()
+
+        plotter.clear()
+        plotter.show_grid()
+        plotter.set_background("black")
 
         for atom_index, (symbol, x, y, z) in enumerate(self.geometry):
             sphere = pv.Sphere(
                 center=(x, y, z),
                 radius=ELEMENT_RADII.get(symbol, 0.35),
             )
+            color = ELEMENT_COLORS.get(symbol, "lightgray")
             plotter.add_mesh(
                 sphere,
-                color=ELEMENT_COLORS.get(symbol, "lightgray"),
+                color=color,
                 smooth_shading=True,
                 name=f"atom-{atom_index}",
                 pickable=True,
             )
+            if atom_index in self.selected_indices:
+                # Wireframe halo slightly larger than the atom sphere
+                halo = pv.Sphere(
+                    center=(x, y, z),
+                    radius=ELEMENT_RADII.get(symbol, 0.35) * 1.35,
+                )
+                plotter.add_mesh(
+                    halo,
+                    color="yellow",
+                    opacity=0.35,
+                    name=f"sel-{atom_index}",
+                    pickable=False,
+                )
 
         for bond_index, (i, j) in enumerate(self.detect_bonds()):
             _, x1, y1, z1 = self.geometry[i]
@@ -447,5 +572,8 @@ class GeometryEditor:
                 pickable=False,
             )
 
-        if self.geometry:
+        if reset_camera and self.geometry:
             plotter.reset_camera()
+            plotter.camera_position = 'xy'
+        else:
+            plotter.camera = camera

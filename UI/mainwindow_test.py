@@ -95,6 +95,8 @@ class Ui_MainWindow(object):
         self.actionOrbital_plot.setObjectName("actionOrbital_plot")
         self.actionELF_map = QtGui.QAction(parent=MainWindow)
         self.actionELF_map.setObjectName("actionELF_map")
+        self.actionLOL_map = QtGui.QAction(parent=MainWindow)
+        self.actionLOL_map.setObjectName("actionLOL_map")
         self.menuFile.addAction(self.actionOpen_File)
         self.menuFile.addAction(self.actionSave)
         self.menuFile.addAction(self.actionSave_As)
@@ -111,6 +113,7 @@ class Ui_MainWindow(object):
         self.menuRun_openWFN.addAction(self.actionElectron_Density_map)
         self.menuRun_openWFN.addAction(self.actionESP_map)
         self.menuRun_openWFN.addAction(self.actionELF_map)
+        self.menuRun_openWFN.addAction(self.actionLOL_map)
         self.menuRun_openWFN.addAction(self.actionOrbital_plot)
         self.menuRun.addAction(self.actionRun_Calculation)
         self.menuRun.addAction(self.menuRun_Test.menuAction())
@@ -150,10 +153,11 @@ class Ui_MainWindow(object):
         self.actionAdd_Geometry.setText(_translate("MainWindow", "Add Geometry"))
         self.actionConversion_Dialog.setText(_translate("MainWindow", "Conversion Dialog"))
         self.actionZ_Matrix_Representation.setText(_translate("MainWindow", "Z-Matrix "))
-        self.actionElectron_Density_map.setText(_translate("MainWindow", "Electron Density map"))
+        self.actionElectron_Density_map.setText(_translate("MainWindow", "ELD map"))
         self.actionESP_map.setText(_translate("MainWindow", "ESP map"))
         self.actionOrbital_plot.setText(_translate("MainWindow", "Orbital plot"))
         self.actionELF_map.setText(_translate("MainWindow", "ELF map"))
+        self.actionLOL_map.setText(_translate("MainWindow", "LOL map"))
 
 
 if __name__ == "__main__":

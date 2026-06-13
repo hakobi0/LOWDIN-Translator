@@ -374,22 +374,37 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         dialog.exec()
 
     def open_geometry_editor(self):
-        if not self.current_atoms:
-            QMessageBox.information(self, "No geometry", "Load a geometry first.")
-            return
-
         dialog = GeometryDialogStudy(self.current_atoms, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
-            print(self.current_atoms)
             return
 
-        self.current_atoms = dialog.get_atoms()
-        if self.last_conversion is None:
+        new_atoms = dialog.get_atoms()
+        if not new_atoms:
             return
 
-        self.last_conversion["atomos"] = self.current_atoms[:]
-        self.last_conversion["geometria_bruta"] = dialog.get_geometria_bruta()
-        self._rebuild_lowdin_from_state()
+        self.current_atoms = new_atoms
+        geometria_bruta = dialog.get_geometria_bruta()
+
+        if self.last_conversion is not None:
+            self.last_conversion["atomos"] = self.current_atoms[:]
+            self.last_conversion["geometria_bruta"] = geometria_bruta
+            self._rebuild_lowdin_from_state()
+        else:
+            # No file loaded — geometry was drawn from scratch.
+            # Bootstrap last_conversion and open ConversionDialog so the user
+            # can pick method, basis, charge and multiplicity.
+            self.last_conversion = {
+                "metodo": "RHF",
+                "base": self.available_basis[0] if self.available_basis else "",
+                "base_positron": "",
+                "base_proton": "dirac",
+                "carga": 0,
+                "mult": 1,
+                "geometria_bruta": geometria_bruta,
+                "titulo": "Molecule",
+                "atomos": self.current_atoms[:],
+            }
+            self.opendialog()
 
     def _rebuild_lowdin_from_state(self):
         if not self.last_conversion:
