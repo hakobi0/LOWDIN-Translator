@@ -5,7 +5,7 @@ import pyvista as pv
 
 from model.variablesglobales import ATOMIC_WEIGHT
 
-from model.geometryoptimizer_study import GeometryOptimizer
+from model.geometryoptimizer import GeometryOptimizer
 
 
 ELEMENT_COLORS = {
@@ -527,12 +527,12 @@ class GeometryEditor:
                 inside.append(idx)
         return inside
 
-    def render_in_plotter(self, plotter, reset_camera=False):
+    def render_in_plotter(self, plotter, reset_camera=False, background="black"):
         camera = plotter.camera.copy()
 
         plotter.clear()
         plotter.show_grid()
-        plotter.set_background("black")
+        plotter.set_background(background)
 
         for atom_index, (symbol, x, y, z) in enumerate(self.geometry):
             sphere = pv.Sphere(

@@ -7,233 +7,294 @@
     <x>0</x>
     <y>0</y>
     <width>552</width>
-    <height>849</height>
+    <height>680</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
-  <widget class="QWidget" name="verticalLayoutWidget">
-   <property name="geometry">
+  <property name="sizeGripEnabled">
+   <bool>true</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="contentsMargins">
     <rect>
-     <x>19</x>
-     <y>19</y>
-     <width>521</width>
-     <height>821</height>
+     <x>16</x>
+     <y>16</y>
+     <width>16</width>
+     <height>16</height>
     </rect>
+    <number>16</number>
+    <number>16</number>
+    <number>16</number>
    </property>
-   <layout class="QVBoxLayout" name="verticalLayout">
-    <item>
-     <widget class="QGroupBox" name="task_box">
-      <property name="title">
-       <string>Tasks</string>
+   <property name="spacing">
+    <number>10</number>
+   </property>
+   <item>
+    <widget class="QGroupBox" name="task_box">
+     <property name="title">
+      <string>Tasks</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout_3">
+      <property name="contentsMargins">
+    <rect>
+     <x>10</x>
+     <y>10</y>
+     <width>10</width>
+     <height>10</height>
+    </rect>
+       <number>10</number>
+       <number>10</number>
+       <number>10</number>
       </property>
-      <widget class="QWidget" name="formLayoutWidget_3">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>20</y>
-         <width>481</width>
-         <height>41</height>
-        </rect>
-       </property>
-       <layout class="QFormLayout" name="formLayout_3">
-        <item row="0" column="0">
-         <widget class="QLabel" name="task_label">
-          <property name="text">
-           <string>Method</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QComboBox" name="metodo_combobox"/>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="molecule_box">
-      <property name="title">
-       <string>Molecule</string>
+      <item row="0" column="0">
+       <widget class="QLabel" name="task_label">
+        <property name="text">
+         <string>Method</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="metodo_combobox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="molecule_box">
+     <property name="title">
+      <string>Molecule</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout_2">
+      <property name="contentsMargins">
+    <rect>
+     <x>10</x>
+     <y>10</y>
+     <width>10</width>
+     <height>10</height>
+    </rect>
+       <number>10</number>
+       <number>10</number>
+       <number>10</number>
       </property>
-      <widget class="QWidget" name="formLayoutWidget_2">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>40</y>
-         <width>479</width>
-         <height>71</height>
-        </rect>
-       </property>
-       <layout class="QFormLayout" name="formLayout_2">
-        <item row="0" column="0">
-         <widget class="QLabel" name="mult_label">
-          <property name="text">
-           <string>Multiplicity</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QComboBox" name="mult_qcombobox"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="charge_label">
-          <property name="text">
-           <string>Charge</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QComboBox" name="charge_qcombobox"/>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="basis_box">
-      <property name="title">
-       <string>Basis</string>
+      <item row="0" column="0">
+       <widget class="QLabel" name="mult_label">
+        <property name="text">
+         <string>Multiplicity</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="mult_qcombobox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="charge_label">
+        <property name="text">
+         <string>Charge</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="charge_qcombobox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="basis_box">
+     <property name="title">
+      <string>Basis</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <property name="contentsMargins">
+    <rect>
+     <x>10</x>
+     <y>10</y>
+     <width>10</width>
+     <height>10</height>
+    </rect>
+       <number>10</number>
+       <number>10</number>
+       <number>10</number>
       </property>
-      <widget class="QWidget" name="formLayoutWidget">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>30</y>
-         <width>481</width>
-         <height>101</height>
-        </rect>
-       </property>
-       <layout class="QFormLayout" name="formLayout">
-        <item row="0" column="0">
-         <widget class="QLabel" name="electronic_basis_label">
-          <property name="text">
-           <string>Electronic Basis</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="positronic_basis_label">
-          <property name="text">
-           <string>Positronic Basis</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="nuclear_basis_label">
-          <property name="text">
-           <string>Nuclear Basis</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QComboBox" name="electronic_qcombox"/>
-        </item>
-        <item row="1" column="1">
-         <widget class="QComboBox" name="positronic_qcombox"/>
-        </item>
-        <item row="2" column="1">
-         <widget class="QComboBox" name="nuclear_qcombobox"/>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="control_box">
-      <property name="title">
-       <string>Control</string>
+      <item row="0" column="0">
+       <widget class="QLabel" name="electronic_basis_label">
+        <property name="text">
+         <string>Electronic Basis</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="electronic_qcombox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="positronic_basis_label">
+        <property name="text">
+         <string>Positronic Basis</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="positronic_qcombox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="nuclear_basis_label">
+        <property name="text">
+         <string>Nuclear Basis</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="nuclear_qcombobox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="control_box">
+     <property name="title">
+      <string>Control</string>
+     </property>
+     <layout class="QHBoxLayout" name="controlLayout">
+      <property name="contentsMargins">
+    <rect>
+     <x>10</x>
+     <y>10</y>
+     <width>10</width>
+     <height>10</height>
+    </rect>
+       <number>10</number>
+       <number>10</number>
+       <number>10</number>
       </property>
-      <widget class="QWidget" name="verticalLayoutWidget_3">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>30</y>
-         <width>481</width>
-         <height>91</height>
-        </rect>
-       </property>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
-        <item>
-         <widget class="QComboBox" name="control_comboBox"/>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QPushButton" name="Task_pushButton">
-       <property name="geometry">
-        <rect>
-         <x>410</x>
-         <y>120</y>
-         <width>81</width>
-         <height>25</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Add Option</string>
-       </property>
-      </widget>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="input_box">
-      <property name="title">
-       <string>Input</string>
+      <item>
+       <widget class="QComboBox" name="control_comboBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="Task_pushButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Add Option</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="input_box">
+     <property name="title">
+      <string>Input</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <property name="contentsMargins">
+    <rect>
+     <x>10</x>
+     <y>10</y>
+     <width>10</width>
+     <height>10</height>
+    </rect>
+       <number>10</number>
+       <number>10</number>
+       <number>10</number>
       </property>
-      <widget class="QWidget" name="verticalLayoutWidget_2">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>20</y>
-         <width>521</width>
-         <height>131</height>
-        </rect>
-       </property>
-       <layout class="QVBoxLayout" name="verticalLayout_2">
-        <item>
-         <widget class="QCheckBox" name="moldenfile_checkBox">
-          <property name="text">
-           <string>moldenFile</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="wfn_checkBox">
-          <property name="text">
-           <string>wfnFile</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="wfx_checkBox">
-          <property name="text">
-           <string>wfxFile</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="NB047_checkBox">
-          <property name="text">
-           <string>NB047File</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item>
-     <widget class="QDialogButtonBox" name="buttonBox">
-      <property name="orientation">
-       <enum>Qt::Orientation::Horizontal</enum>
-      </property>
-      <property name="standardButtons">
-       <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
+      <item>
+       <widget class="QCheckBox" name="moldenfile_checkBox">
+        <property name="text">
+         <string>moldenFile</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="wfn_checkBox">
+        <property name="text">
+         <string>wfnFile</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="wfx_checkBox">
+        <property name="text">
+         <string>wfxFile</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="NB047_checkBox">
+        <property name="text">
+         <string>NB047File</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
  </widget>
  <resources/>
  <connections/>

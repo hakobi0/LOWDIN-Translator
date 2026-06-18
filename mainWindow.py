@@ -5,16 +5,266 @@ import subprocess
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QFileDialog, QInputDialog, QMainWindow, QMessageBox,
-    QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox
+    QApplication, QDialog, QDialogButtonBox, QFileDialog, QInputDialog,
+    QLabel, QMainWindow, QMessageBox, QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox
 )
+from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor
 
 from model import parserclass, primerinicio, variablesglobales
 from model.formateargeometria_c import formatear_geometria
+from model.inputvalidator import suggest_method, validation_summary
+from model.basisnormalizer import resolve_basis, validate_basis
 from UI.conversiondialog_test import Ui_Dialog
 from UI.mainwindow_test import Ui_MainWindow
 from UI.addElectrons import Ui_addParticlesDialog
-from view.geometrydialog_study import GeometryDialogStudy
+from view.geometrydialog import GeometryDialogStudy
+
+
+import re as _re
+
+# ---------------------------------------------------------------------------
+# UI Theme stylesheets
+# ---------------------------------------------------------------------------
+
+DARK_STYLESHEET = """
+QWidget {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+}
+QMainWindow, QDialog {
+    background-color: #1e1e1e;
+}
+QMenuBar {
+    background-color: #252526;
+    color: #cccccc;
+    border-bottom: 1px solid #3c3c3c;
+}
+QMenuBar::item:selected {
+    background-color: #094771;
+}
+QMenu {
+    background-color: #252526;
+    color: #cccccc;
+    border: 1px solid #3c3c3c;
+}
+QMenu::item:selected {
+    background-color: #094771;
+}
+QTabWidget::pane {
+    border: 1px solid #3c3c3c;
+    background-color: #1e1e1e;
+}
+QTabBar::tab {
+    background-color: #2d2d2d;
+    color: #aaaaaa;
+    padding: 5px 14px;
+    border: 1px solid #3c3c3c;
+    border-bottom: none;
+}
+QTabBar::tab:selected {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border-bottom: 2px solid #007acc;
+}
+QTabBar::tab:hover:!selected {
+    background-color: #3a3a3a;
+}
+QTextEdit, QPlainTextEdit {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    selection-background-color: #264f78;
+}
+QGroupBox {
+    border: 1px solid #3c3c3c;
+    border-radius: 5px;
+    margin-top: 8px;
+    padding-top: 4px;
+    color: #9cdcfe;
+    font-weight: bold;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+}
+QComboBox {
+    background-color: #2d2d2d;
+    color: #d4d4d4;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    padding: 3px 8px;
+    selection-background-color: #094771;
+}
+QComboBox:hover { border-color: #007acc; }
+QComboBox::drop-down { border: none; width: 20px; }
+QComboBox QAbstractItemView {
+    background-color: #252526;
+    color: #d4d4d4;
+    selection-background-color: #094771;
+    border: 1px solid #3c3c3c;
+}
+QPushButton {
+    background-color: #3c3c3c;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 5px 14px;
+}
+QPushButton:hover    { background-color: #4a4a4a; border-color: #888; }
+QPushButton:pressed  { background-color: #2d2d2d; }
+QPushButton:checked  { background-color: #094771; border-color: #007acc; }
+QPushButton:disabled { color: #666; border-color: #3c3c3c; }
+QCommandLinkButton {
+    background-color: #0e639c;
+    color: #ffffff;
+    border: 1px solid #1177bb;
+    border-radius: 4px;
+    padding: 5px 14px;
+    font-weight: bold;
+}
+QCommandLinkButton:hover  { background-color: #1177bb; }
+QCommandLinkButton:pressed { background-color: #0a4f7e; }
+QCheckBox { color: #d4d4d4; spacing: 6px; }
+QCheckBox::indicator {
+    width: 14px; height: 14px;
+    border: 1px solid #555; border-radius: 3px;
+    background-color: #2d2d2d;
+}
+QCheckBox::indicator:checked { background-color: #007acc; border-color: #007acc; }
+QLabel { color: #d4d4d4; }
+QScrollBar:vertical {
+    background: #252526; width: 10px; border: none;
+}
+QScrollBar::handle:vertical {
+    background: #424242; border-radius: 5px; min-height: 20px;
+}
+QScrollBar::handle:vertical:hover { background: #555; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal {
+    background: #252526; height: 10px; border: none;
+}
+QScrollBar::handle:horizontal {
+    background: #424242; border-radius: 5px; min-width: 20px;
+}
+QScrollBar::handle:horizontal:hover { background: #555; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QStatusBar {
+    background-color: #007acc;
+    color: #ffffff;
+    font-size: 12px;
+}
+QDialogButtonBox QPushButton {
+    min-width: 70px;
+}
+QMessageBox { background-color: #1e1e1e; color: #d4d4d4; }
+"""
+
+LIGHT_STYLESHEET = ""  # Empty = Qt default system style
+
+# ---------------------------------------------------------------------------
+# Each scheme: (keyword, atom, particle, number, string_, comment, param)
+# keyword = block keywords bold
+# atom    = element symbols in GEOMETRY
+# particle= e-(X) / e+(X) lines
+# number  = float coordinates
+# string_ = quoted strings
+# comment = # comments
+# param   = parameter names (method=, multiplicity=, …)
+
+HIGHLIGHT_SCHEMES = {
+    "Dark (VS Code)": {
+        "keyword":  ("#569CD6", True),
+        "atom":     ("#4EC9B0", False),
+        "particle": ("#CE9178", False),
+        "number":   ("#B5CEA8", False),
+        "string_":  ("#CE9178", False),
+        "comment":  ("#6A9955", False),
+        "param":    ("#9CDCFE", False),
+    },
+    "Light (GitHub)": {
+        "keyword":  ("#0550AE", True),
+        "atom":     ("#116329", False),
+        "particle": ("#953800", False),
+        "number":   ("#0550AE", False),
+        "string_":  ("#0A3069", False),
+        "comment":  ("#57606A", False),
+        "param":    ("#6639BA", False),
+    },
+    "Solarized Dark": {
+        "keyword":  ("#268BD2", True),
+        "atom":     ("#2AA198", False),
+        "particle": ("#CB4B16", False),
+        "number":   ("#859900", False),
+        "string_":  ("#2AA198", False),
+        "comment":  ("#657B83", False),
+        "param":    ("#6C71C4", False),
+    },
+    "Monokai": {
+        "keyword":  ("#F92672", True),
+        "atom":     ("#A6E22E", False),
+        "particle": ("#FD971F", False),
+        "number":   ("#AE81FF", False),
+        "string_":  ("#E6DB74", False),
+        "comment":  ("#75715E", False),
+        "param":    ("#66D9E8", False),
+    },
+}
+
+_KEYWORDS = ["GEOMETRY", "END GEOMETRY", "TASKS", "END TASKS",
+             "CONTROL", "END CONTROL", "SYSTEM_DESCRIPTION"]
+_PARAM_RE = _re.compile(
+    r'\b(method|multiplicity|addParticles|mollerPlessetCorrection|'
+    r'electronExchangeCorrelationFunctional)\b'
+)
+_ATOM_RE    = _re.compile(r'^\s*(?!e[-+])\b([A-Z][a-z]?)\b', _re.MULTILINE)
+_PARTICLE_RE = _re.compile(r'e[+-]\([A-Za-z]+\)')
+_BARE_PE_RE  = _re.compile(r'\be[+-]\b')
+_NUMBER_RE  = _re.compile(r'[-+]?\d+\.\d+')
+_STRING_RE  = _re.compile(r"'[^']*'")
+_COMMENT_RE = _re.compile(r'#.*')
+
+
+class LowdinHighlighter(QSyntaxHighlighter):
+    def __init__(self, document, scheme="Dark (VS Code)"):
+        super().__init__(document)
+        self._rules = []
+        self.set_scheme(scheme)
+
+    def set_scheme(self, name):
+        palette = HIGHLIGHT_SCHEMES.get(name, HIGHLIGHT_SCHEMES["Dark (VS Code)"])
+
+        def _fmt(color, bold=False):
+            f = QTextCharFormat()
+            f.setForeground(QColor(color))
+            if bold:
+                f.setFontWeight(700)
+            return f
+
+        self._rules = []
+        kw_color, kw_bold = palette["keyword"]
+        kw_fmt = _fmt(kw_color, kw_bold)
+        for kw in _KEYWORDS:
+            self._rules.append((_re.compile(rf'\b{_re.escape(kw)}\b'), kw_fmt))
+
+        self._rules += [
+            (_ATOM_RE,     _fmt(*palette["atom"])),
+            (_PARTICLE_RE, _fmt(*palette["particle"])),
+            (_BARE_PE_RE,  _fmt(*palette["particle"])),
+            (_NUMBER_RE,   _fmt(*palette["number"])),
+            (_STRING_RE,   _fmt(*palette["string_"])),
+            (_COMMENT_RE,  _fmt(*palette["comment"])),
+            (_PARAM_RE,    _fmt(*palette["param"])),
+        ]
+        self.rehighlight()
+
+    def highlightBlock(self, text):
+        for pattern, fmt in self._rules:
+            for m in pattern.finditer(text):
+                self.setFormat(m.start(), m.end() - m.start(), fmt)
 
 
 class AddParticlesDialog(QDialog):
@@ -93,6 +343,7 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
 
         self.geometria_bruta = geometria_bruta
         self.titulo = titulo
+        self.atomos = atomos or []
         self.available_basis = kwargs.get("basis", [])
         self.lowdin_input = ""
 
@@ -122,6 +373,20 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
         self.control_comboBox.addItem("")
         self.control_comboBox.addItems(variablesglobales.tareas_integrales)
 
+        # --- Validation panel (inserted above OK/Cancel) ---
+        self._validation_label = QLabel()
+        self._validation_label.setWordWrap(True)
+        self._validation_label.setStyleSheet("padding: 4px;")
+        # verticalLayout is the main layout from Ui_Dialog; insert before the last item (buttonBox)
+        idx = self.verticalLayout.count() - 1
+        self.verticalLayout.insertWidget(idx, self._validation_label)
+
+        self.metodo_combobox.currentTextChanged.connect(self._run_validation)
+        self.charge_qcombobox.currentTextChanged.connect(self._run_validation)
+        self.mult_qcombobox.currentTextChanged.connect(self._run_validation)
+        self.electronic_qcombox.currentTextChanged.connect(self._run_validation)
+        self._run_validation()
+
         self.buttonBox.accepted.connect(self._on_accept)
         self.buttonBox.rejected.connect(self.reject)
 
@@ -133,6 +398,61 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
             multiplicities = ["2", "4", "6", "8", "10"]
         self.mult_qcombobox.clear()
         self.mult_qcombobox.addItems(multiplicities)
+
+    def _run_validation(self):
+        try:
+            charge = int(self.charge_qcombobox.currentText())
+            mult = int(self.mult_qcombobox.currentText())
+            method = self.metodo_combobox.currentText()
+            basis_input = self.electronic_qcombox.currentText().strip()
+        except (ValueError, AttributeError):
+            return
+
+        messages = []
+        has_error = False
+
+        # --- Basis resolution ---
+        if basis_input:
+            basis_result = validate_basis(basis_input)
+            resolved_basis = basis_result["resolved"]
+
+            # Auto-correct the combobox to the canonical name silently
+            if basis_result["matched"] and resolved_basis != basis_input:
+                self.electronic_qcombox.blockSignals(True)
+                self.electronic_qcombox.setCurrentText(resolved_basis)
+                self.electronic_qcombox.blockSignals(False)
+            elif not basis_result["matched"]:
+                messages.append(("warning", basis_result["warning"]))
+
+        # --- Method / spin validation ---
+        if self.atomos:
+            result = suggest_method(method, self.atomos, charge, mult)
+            spin_messages = validation_summary(self.atomos, charge, mult, method)
+
+            corrected = result["corrected_method"]
+            if corrected != method:
+                self.metodo_combobox.blockSignals(True)
+                self.metodo_combobox.setCurrentText(corrected)
+                self.metodo_combobox.blockSignals(False)
+
+            messages.extend(spin_messages)
+
+        # --- Build display ---
+        colors = {"error": "#cc0000", "warning": "#b36b00"}
+        lines = []
+        for level, msg in messages:
+            if level == "info":
+                continue
+            if level == "error":
+                has_error = True
+            color = colors.get(level, "black")
+            lines.append(f'<span style="color:{color};">{msg}</span>')
+
+        self._validation_label.setText("<br>".join(lines))
+
+        ok_btn = self.buttonBox.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn:
+            ok_btn.setEnabled(not has_error)
 
     def _collect_output_options(self):
         """Collect checked output options from checkboxes."""
@@ -204,6 +524,9 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         self.extra_electrons = []
         self.extra_positrons = []
 
+        self._highlighter = LowdinHighlighter(self.translated_textedit.document(), scheme="Light (GitHub)")
+        self._build_view_menu()
+
         self.first_run_check()
 
         # File menu actions
@@ -239,6 +562,10 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             self.actionOrbital_plot.triggered.connect(
                 lambda: self.run_multiwfn("orbital_plot.txt")
             )
+        if hasattr(self, 'actionLOL_map'):
+            self.actionLOL_map.triggered.connect(
+                lambda: self.run_multiwfn("lol_map.txt")
+            )
 
         # Connect run button if it exists
         if hasattr(self, 'run_button'):
@@ -247,6 +574,52 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
     def first_run_check(self):
         init = primerinicio.PrimerInicio()
         self.available_basis = init.basis
+
+    def _build_view_menu(self):
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction, QActionGroup
+
+        view_menu = QMenu("View", self)
+
+        # --- UI Theme ---
+        theme_menu = view_menu.addMenu("UI Theme")
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+
+        act_light = QAction("Light (System Default)", self, checkable=True)
+        act_dark  = QAction("Dark",                   self, checkable=True)
+        act_light.setChecked(True)
+
+        def _apply_theme(stylesheet, default_syntax, plotter_bg):
+            QApplication.instance().setStyleSheet(stylesheet)
+            self._highlighter.set_scheme(default_syntax)
+            GeometryDialogStudy.plotter_background = plotter_bg
+            # Sync the checked syntax action
+            for a in syntax_group.actions():
+                a.setChecked(a.text() == default_syntax)
+
+        act_light.triggered.connect(lambda: _apply_theme(LIGHT_STYLESHEET, "Light (GitHub)", "white"))
+        act_dark.triggered.connect( lambda: _apply_theme(DARK_STYLESHEET,  "Dark (VS Code)", "black"))
+
+        for act in (act_light, act_dark):
+            theme_group.addAction(act)
+            theme_menu.addAction(act)
+
+        view_menu.addSeparator()
+
+        # --- Syntax Theme ---
+        syntax_menu = view_menu.addMenu("Syntax Theme")
+        syntax_group = QActionGroup(self)
+        syntax_group.setExclusive(True)
+        for name in HIGHLIGHT_SCHEMES:
+            act = QAction(name, self, checkable=True)
+            if name == "Light (GitHub)":
+                act.setChecked(True)
+            act.triggered.connect(lambda checked, n=name: self._highlighter.set_scheme(n))
+            syntax_group.addAction(act)
+            syntax_menu.addAction(act)
+
+        self.menubar.addMenu(view_menu)
 
     def loadfile(self):
         archivo, _ = QFileDialog.getOpenFileName(
@@ -290,9 +663,13 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         if carga is None:
             carga = 0
 
+        raw_base = datos.get("base_elec", "") or ""
+        resolved_base, basis_matched = resolve_basis(raw_base) if raw_base not in ("", "NONE") else ("", False)
+        basis_unknown = raw_base in ("", "NONE") or not basis_matched
+
         self.last_conversion = {
             "metodo": datos.get("metodo_real", "RHF") or "RHF",
-            "base": datos.get("base_elec", "") or "",
+            "base": resolved_base,
             "base_positron": "",
             "base_proton": "dirac",
             "carga": carga,
@@ -302,7 +679,21 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             "atomos": self.current_atoms[:],
         }
 
-        self._rebuild_lowdin_from_state()
+        if basis_unknown:
+            # Basis could not be detected or resolved — open the dialog immediately
+            # so the user can pick one rather than generating a broken input silently.
+            if raw_base in ("", "NONE"):
+                msg = "No basis set was detected in this file."
+            else:
+                msg = f'Basis "{raw_base}" is not in the LOWDIN library.'
+            QMessageBox.warning(
+                self,
+                "Basis Set Required",
+                f"{msg}\n\nThe Conversion Dialog will open so you can select one."
+            )
+            self.opendialog()
+        else:
+            self._rebuild_lowdin_from_state()
 
     def opendialog(self):
         if not self.last_conversion:
@@ -348,7 +739,7 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             QMessageBox.information(self, "No geometry", "Load a geometry first.")
             return
 
-        from model.geometryeditor_study import GeometryEditor
+        from model.geometryeditor import GeometryEditor
         from PyQt6.QtWidgets import QTextEdit, QPushButton, QVBoxLayout
         from PyQt6.QtGui import QFont
 
@@ -542,12 +933,14 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             with open(script_path, "r") as f:
                 script_input = f.read()
 
-            plane_scripts = {
-                "electron_density.txt": 4,
-                "esp_map.txt": 4,
-                "elf_map.txt": 4,
-                "lol_map.txt": 4,
-                "orbital_plot.txt": 5,  # shifted by orbital selector line
+            # Scripts that support plane + grid quality selection
+            # Values: (plane_line_index, grid_quality_line_index)
+            map_scripts = {
+                "electron_density.txt": (4, 5),
+                "esp_map.txt":          (4, 5),
+                "elf_map.txt":          (4, 5),
+                "lol_map.txt":          (4, 5),
+                "orbital_plot.txt":     (5, 6),  # shifted by orbital selector line
             }
 
             lines = script_input.splitlines()
@@ -582,8 +975,10 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                     return
                 lines[3] = graph_type[0]  # Extract "1"-"5"
 
-            # For all 2D map scripts, ask which plane
-            if script_name in plane_scripts:
+            # For all 2D map scripts, ask plane and grid quality
+            if script_name in map_scripts:
+                plane_idx, grid_idx = map_scripts[script_name]
+
                 plane, accepted = QInputDialog.getItem(
                     self,
                     "Plane Selection",
@@ -594,8 +989,21 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                 )
                 if not accepted:
                     return
-                plane_index = plane_scripts[script_name]
-                lines[plane_index] = plane[plane.index("(") + 1]  # Extract "1", "2", or "3"
+                lines[plane_idx] = plane[plane.index("(") + 1]
+
+                grid, accepted = QInputDialog.getText(
+                    self,
+                    "Grid Resolution",
+                    "How many grid points in each dimension?\n"
+                    "Enter as two numbers separated by a comma (e.g. 400,400)\n"
+                    "Leave empty to use Multiwfn default (200,200):",
+                    text="",
+                )
+                if not accepted:
+                    return
+                grid = grid.strip()
+                if grid:
+                    lines[grid_idx] = grid
 
             script_input = "\n".join(lines) + "\n"
 

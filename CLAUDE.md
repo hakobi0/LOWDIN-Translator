@@ -21,14 +21,14 @@ The application requires X11 rendering (`QT_QPA_PLATFORM=xcb` is set automatical
 ### Core Components
 
 - `mainWindow.py`: Main application entry point and primary UI controller
-  - `MainWindow`: Main window class (inherits from `Ui_MainWindow`)
-  - `ConversionDialog`: Dialog for configuring conversion parameters
+  - `MainWindowStudy`: Main window class (inherits from `Ui_MainWindow`)
+  - `ConversionDialogStudy`: Dialog for configuring conversion parameters
   - `AddParticlesDialog`: Dialog for adding particles to geometry
-  - `GeometryDialog`: 3D visualization window using PyVista
+  - `LowdinHighlighter`: Syntax highlighter for the LOWDIN output editor
 
 ### Model Layer (`model/`)
 
-- `parserclass.py`: Detects format (XYZ, ORCA, Gaussian) and extracts geometry, basis sets, method, charge, multiplicity
+- `parserclass.py`: Detects format (XYZ, ORCA, Gaussian, Z-matrix) and extracts geometry, basis sets, method, charge, multiplicity
 - `formateargeometria_c.py`: Core geometry formatter that generates LOWDIN input files
   - Handles particle ordering: electrons first, then positrons, then nuclei
   - Manages basis set assignments per particle type
@@ -38,14 +38,17 @@ The application requires X11 rendering (`QT_QPA_PLATFORM=xcb` is set automatical
   - `positron_basis`, `nuclear_basis`: Available bases for exotic particles
   - Task lists for different computational methods (HF, MP2, SCF)
 - `primerinicio.py`: First-run initialization, searches for LOWDIN executable and available basis sets
-- `geometryeditor.py`: Geometry manipulation utilities
+- `geometryeditor.py`: 3D geometry manipulation, selection, measurement, and PyVista rendering
+- `geometryoptimizer.py`: RDKit-based geometry optimization (UFF and MMFF force fields)
+- `inputvalidator.py`: Validates method/charge/multiplicity consistency, suggests RHF vs UHF
+- `basisnormalizer.py`: Normalizes basis set names across ORCA/Gaussian/LOWDIN conventions
+- `zmatrix_parser.py`: Parses Z-matrix input format and converts to Cartesian coordinates
 
 ### View Layer (`view/`)
 
-- `conversiondialog.py`: Conversion dialog view components
+- `geometrydialog.py`: 3D geometry editor dialog (PyVista, selection mode, add/remove atoms, optimization)
 - `particlerow.py`: UI components for particle table rows
 - `setupdialog.py`: Setup dialog views
-- `geometrydialog_study.py`: Geometry visualization studies
 
 ### UI Layer (`UI/`)
 
@@ -53,7 +56,12 @@ Contains Qt Designer `.ui` files and their auto-generated Python counterparts:
 - `mainwindow_test.py` / `mainwindow.ui`: Main window UI
 - `conversiondialog_test.py` / `conversiondialog.ui`: Conversion dialog UI
 - `addElectrons.py` / `addElectrons.ui`: Add particles dialog UI
-- `geomvisualizator.py` / `geometry_visualizator.ui`: 3D visualization widget UI
+- `geomvisualizator.py` / `geometry_visualizator.ui`: 3D geometry editor widget UI
+
+To regenerate a Python UI file after editing the `.ui` in Qt Designer:
+```bash
+python -m PyQt6.uic.pyuic UI/mainwindow.ui -o UI/mainwindow_test.py
+```
 
 ## Key Data Flow
 
@@ -85,12 +93,9 @@ User settings stored in `~/.config/lowdintranslator/config.ini` including LOWDIN
 
 ## File Naming Conventions
 
-Files suffixed with `_notused`, `_c`, `_test`, or `_study` indicate:
-- `_notused`: Deprecated/replaced code
-- `_c`: Current/experimental implementation
-- `_test`: Testing or UI auto-generated code
-- `_study`: Experimental/research code
-- non-suffix files are the canonical files.
+Files suffixed with `_notused` or `_test` indicate:
+- `_notused`: Deprecated/replaced code, kept locally for reference but not tracked
+- `_test`: Auto-generated Python from Qt Designer `.ui` files (do not edit by hand)
 
 ## Dependencies
 

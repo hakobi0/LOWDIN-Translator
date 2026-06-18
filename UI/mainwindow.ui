@@ -14,83 +14,127 @@
    <string>LOWDIN Translator Alpha</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QTabWidget" name="tabWidget">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>0</y>
-      <width>1161</width>
-      <height>881</height>
-     </rect>
+   <layout class="QVBoxLayout" name="centralLayout">
+    <property name="contentsMargins">
+    <rect>
+     <x>6</x>
+     <y>6</y>
+     <width>6</width>
+     <height>6</height>
+    </rect>
+     <number>6</number>
+     <number>6</number>
+     <number>6</number>
     </property>
-    <property name="currentIndex">
-     <number>2</number>
-    </property>
-    <widget class="QWidget" name="Input">
-     <attribute name="title">
-      <string>Input</string>
-     </attribute>
-     <widget class="QTextEdit" name="input_textedit">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1161</width>
-        <height>851</height>
-       </rect>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>2</number>
       </property>
-      <property name="readOnly">
-       <bool>true</bool>
-      </property>
+      <widget class="QWidget" name="Input">
+       <attribute name="title">
+        <string>Input</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="inputTabLayout">
+        <property name="contentsMargins">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>0</width>
+     <height>0</height>
+    </rect>
+         <number>0</number>
+         <number>0</number>
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QTextEdit" name="input_textedit">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="Converted_Input">
+       <attribute name="title">
+        <string>LOWDIN Input</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="convertedTabLayout">
+        <property name="contentsMargins">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>0</width>
+     <height>0</height>
+    </rect>
+         <number>0</number>
+         <number>0</number>
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QTextEdit" name="translated_textedit"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="Output">
+       <attribute name="title">
+        <string>Output</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="outputTabLayout">
+        <property name="contentsMargins">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>0</width>
+     <height>0</height>
+    </rect>
+         <number>0</number>
+         <number>0</number>
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QTextEdit" name="output_textedit">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
-    </widget>
-    <widget class="QWidget" name="Converted_Input">
-     <attribute name="title">
-      <string>LOWDIN Input</string>
-     </attribute>
-     <widget class="QTextEdit" name="translated_textedit">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1161</width>
-        <height>851</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="Output">
-     <attribute name="title">
-      <string>Output</string>
-     </attribute>
-     <widget class="QTextEdit" name="output_textedit">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1161</width>
-        <height>851</height>
-       </rect>
-      </property>
-      <property name="readOnly">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </widget>
-   </widget>
-   <widget class="QCommandLinkButton" name="run_button">
-    <property name="geometry">
-     <rect>
-      <x>1000</x>
-      <y>880</y>
-      <width>172</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Run Converted Input</string>
-    </property>
-   </widget>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="bottomBarLayout">
+      <item>
+       <spacer name="bottomSpacer">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QCommandLinkButton" name="run_button">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Run Converted Input</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QMenuBar" name="menubar">

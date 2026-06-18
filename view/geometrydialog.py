@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog, QInputDialog, QMessageBox, QProgressDialog, QMenu, QVBoxLayout
 from UI.geomvisualizator import Ui_Form
-from model.geometryeditor_study import GeometryEditor
+from model.geometryeditor import GeometryEditor
 from model.variablesglobales import ATOMIC_WEIGHT
 
 
@@ -20,6 +20,9 @@ ATOM_CHOICES = [
 
 
 class GeometryDialogStudy(QDialog):
+    # Set by the main window before opening the dialog to match the active theme
+    plotter_background = "black"
+
     def __init__(self, atoms, parent=None):
         super().__init__(parent)
         self.ui = Ui_Form()
@@ -280,7 +283,11 @@ class GeometryDialogStudy(QDialog):
         return self.geometry_editor.get_geometry()
 
     def _redraw(self):
-        self.geometry_editor.render_in_plotter(self.plotter, reset_camera=self._first_draw)
+        self.geometry_editor.render_in_plotter(
+            self.plotter,
+            reset_camera=self._first_draw,
+            background=GeometryDialogStudy.plotter_background,
+        )
         self._first_draw = False
         self.get_atoms()
         self._update_info()

@@ -1,5 +1,6 @@
 import re
 from model import variablesglobales
+from model.basisnormalizer import resolve_basis
 from model.zmatrix_parser import ZMatrixParser, is_zmatrix
 
 class Parser:
@@ -87,10 +88,34 @@ class Parser:
             return atomos
 
     def extraer_base(self):
+        # ORCA: basis set appears on the ! keyword line, e.g. "! RHF def2-TZVP Opt"
+        if self.formato == "orca":
+            match = re.search(r"!\s*(.+)", self.contenido)
+            if match:
+                partes = match.group(1).split()
+                skip = {
+                    "OPT", "FREQ", "NUMFREQ", "TIGHTSCF", "LOOSEOPT",
+                    "NORMALOPT", "TIGHTOPT", "VERYTIGHTSCF", "LARGEPRINT",
+                    "MINIPRINT", "NOPRINT", "CPCM", "SMD", "RI", "NORI",
+                    "RIJCOSX", "NOPOP", "SLOWCONV", "VERYSLOWCONV",
+                }
+                for p in partes:
+                    upper = p.upper()
+                    if upper in skip:
+                        continue
+                    # Skip if it looks like a method keyword
+                    if upper in {k.upper() for k in variablesglobales.valid_methods}:
+                        continue
+                    resolved, matched = resolve_basis(p)
+                    if matched:
+                        return resolved
+
+        # Gaussian: PrintBasis line
         match = re.search(r"PrintBasis\s+(.+)", self.contenido)
         if match:
-            base = match.group(1)
-            return variablesglobales.valid_basis.get(base, base)
+            base = match.group(1).strip()
+            resolved, _ = resolve_basis(base)
+            return resolved
 
         if self.formato == "xyz":
             return "NONE"
