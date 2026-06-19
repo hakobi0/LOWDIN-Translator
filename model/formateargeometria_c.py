@@ -81,11 +81,12 @@ class formatear_geometria():
     def _resolver_metodo_tasks(self):
         """Devuelve el string que va en method = "..." del bloque TASKS."""
         if self.metodo_real == "FOCK":
-            # FOCK es alias de HF; abierto/cerrado según multiplicidad
             return "UHF" if self.multiplicidad > 1 else "RHF"
         if self.metodo_real in self._dft_functionals:
             return "UKS" if self.multiplicidad > 1 else "RKS"
-        return self.metodo_real  # RHF, UHF, MP2, RKS, UKS explícitos
+        if self.metodo_real == "MP2":
+            return "UHF" if self.multiplicidad > 1 else "RHF"
+        return self.metodo_real  # RHF, UHF, RKS, UKS explícitos
 
     def _add_particles_str(self, simbolo, add, mult):
         """

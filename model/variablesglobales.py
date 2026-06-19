@@ -224,3 +224,12 @@ tareas_SCF = ['scfNonElectronicEnergyTolerance', 'scfElectronicEnergyTolerance',
 # MP2 Tasks
 
 MP2_tasks = ['propagatorTheoryCorrection=2','IonizeMO', 'ionizeSpecie', 'ptTransitionOperator', 'MOfractionOccupation']
+
+# Control
+
+unit_control = ['formatNumberOfColumns=', 'unitForOutputFile=', 'unitForMolecularOrbitalsFIle=', 'unitForMP2IntegralsFile=', 'printLevel=', 'units=']
+
+general_control = ['method=', 'transformToCenterOfMass=', 'areThereDummyAtoms=',
+                   'areThereQDOPotentials=', 'setQDOEnergyZero=', 'isThereExternalPotential=',
+                   'isThereInterparticlePotential= ', 'isThereOutput=', 'isThereFrozenParticle=', 'dimensionality='
+                   ]

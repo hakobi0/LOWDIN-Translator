@@ -32,25 +32,38 @@ class GeometryOptimizer:
 
     def _mol_from_atoms(self):
         """Create RDKit mol object from atoms list."""
-        try:
-            xyz_block = self._atoms_to_xyz_block()
-            raw_mol = Chem.MolFromXYZBlock(xyz_block)
+        xyz_block = self._atoms_to_xyz_block()
+        raw_mol = Chem.MolFromXYZBlock(xyz_block)
 
-            if raw_mol is None:
-                self.error_message = "Failed to parse XYZ data"
-                return None
-
-            # Create writable copy
-            mol = Chem.Mol(raw_mol)
-
-            # Perceive bonds and bond orders
-            rdDetermineBonds.DetermineBonds(mol, charge=self.charge)
-
-            return mol
-
-        except Exception as e:
-            self.error_message = f"Error creating molecule: {str(e)}"
+        if raw_mol is None:
+            self.error_message = "Failed to parse XYZ data"
             return None
+
+        # Try bond perception strategies in order of preference.
+        # DetermineBonds raises ValueError when it can't satisfy the requested
+        # charge with neutral-valence bond orders; allowChargedFragments=True
+        # lets it place formal charges on atoms instead.
+        attempts = [
+            {"charge": self.charge, "allowChargedFragments": True},
+            {"charge": self.charge, "allowChargedFragments": False},
+            {"charge": 0,           "allowChargedFragments": True},
+        ]
+
+        for kwargs in attempts:
+            try:
+                mol = Chem.RWMol(Chem.Mol(raw_mol))
+                rdDetermineBonds.DetermineBonds(mol, **kwargs)
+                if kwargs["charge"] != self.charge:
+                    self.error_message = (
+                        f"Warning: could not assign bonds with charge={self.charge}; "
+                        "optimizing as neutral molecule"
+                    )
+                return mol
+            except Exception:
+                continue
+
+        self.error_message = "Bond perception failed for this molecule"
+        return None
 
     def _extract_coordinates(self, mol):
         """Extract optimized coordinates from RDKit mol."""

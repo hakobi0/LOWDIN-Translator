@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QFileDialog, QInputDialog,
-    QLabel, QMainWindow, QMessageBox, QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox
+    QLabel, QMainWindow, QMessageBox, QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox, QListWidget
 )
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor
 
@@ -215,7 +215,8 @@ HIGHLIGHT_SCHEMES = {
 }
 
 _KEYWORDS = ["GEOMETRY", "END GEOMETRY", "TASKS", "END TASKS",
-             "CONTROL", "END CONTROL", "SYSTEM_DESCRIPTION"]
+             "CONTROL", "END CONTROL", "OUTPUTS", "END OUTPUTS",
+             "SYSTEM_DESCRIPTION"]
 _PARAM_RE = _re.compile(
     r'\b(method|multiplicity|addParticles|mollerPlessetCorrection|'
     r'electronExchangeCorrelationFunctional)\b'
@@ -371,7 +372,18 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
             self.nuclear_qcombobox.setCurrentText(kwargs["base_proton"])
 
         self.control_comboBox.addItem("")
-        self.control_comboBox.addItems(variablesglobales.tareas_integrales)
+        self.control_comboBox.addItems(variablesglobales.tareas_integrales + variablesglobales.unit_control + variablesglobales.general_control)
+
+        # --- Control options list (multi-add) ---
+        self._control_list = QListWidget()
+        self._control_list.setFixedHeight(80)
+        self._control_list.setToolTip("Double-click an entry to remove it")
+        self._control_list.itemDoubleClicked.connect(
+            lambda item: self._control_list.takeItem(self._control_list.row(item))
+        )
+        self.controlLayout.setDirection(self.controlLayout.Direction.TopToBottom)
+        self.controlLayout.addWidget(self._control_list)
+        self.Task_pushButton.clicked.connect(self._add_control_option)
 
         # --- Validation panel (inserted above OK/Cancel) ---
         self._validation_label = QLabel()
@@ -391,13 +403,23 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
         self.buttonBox.rejected.connect(self.reject)
 
     def _update_multiplicity(self, carga_str):
-        carga = int(carga_str)
-        if carga % 2 == 0:
+        try:
+            carga = int(carga_str)
+        except ValueError:
+            return
+        from model.inputvalidator import count_electrons
+        n_elec = count_electrons(self.atomos, carga) if self.atomos else None
+        # Fall back to charge parity if electron count is unknown
+        parity = (n_elec % 2) if n_elec is not None else (carga % 2)
+        if parity == 0:
             multiplicities = ["1", "3", "5", "7", "9"]
         else:
             multiplicities = ["2", "4", "6", "8", "10"]
+        current = self.mult_qcombobox.currentText()
         self.mult_qcombobox.clear()
         self.mult_qcombobox.addItems(multiplicities)
+        if current in multiplicities:
+            self.mult_qcombobox.setCurrentText(current)
 
     def _run_validation(self):
         try:
@@ -467,13 +489,16 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
             opts.append("NB047File")
         return opts
 
-    def _collect_control_options(self):
-        """Collect control options from combobox."""
-        opts = []
+    def _add_control_option(self):
         val = self.control_comboBox.currentText().strip()
-        if val:
-            opts.append(val)
-        return opts
+        if not val:
+            return
+        existing = [self._control_list.item(i).text() for i in range(self._control_list.count())]
+        if val not in existing:
+            self._control_list.addItem(val)
+
+    def _collect_control_options(self):
+        return [self._control_list.item(i).text() for i in range(self._control_list.count())]
 
     def _on_accept(self):
         if not self.geometria_bruta:

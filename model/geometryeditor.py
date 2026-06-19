@@ -214,9 +214,12 @@ class GeometryEditor:
         if optimized_atoms:
             self.set_geometry(optimized_atoms)
             energy = optimizer.get_energy()
+            msg = f"Optimization successful using {method}"
+            if optimizer.error_message:
+                msg += f"\n\n{optimizer.error_message}"
             return {
                 "success": True,
-                "message": f"Optimization successful using {method}",
+                "message": msg,
                 "energy": energy,
             }
         else:
@@ -573,7 +576,9 @@ class GeometryEditor:
             )
 
         if reset_camera and self.geometry:
+            coords = np.array([[x, y, z] for _, x, y, z in self.geometry])
+            centroid = coords.mean(axis=0)
+            plotter.camera.focal_point = tuple(centroid)
             plotter.reset_camera()
-            plotter.camera_position = 'xy'
         else:
             plotter.camera = camera
