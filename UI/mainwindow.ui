@@ -15,17 +15,6 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="centralLayout">
-    <property name="contentsMargins">
-    <rect>
-     <x>6</x>
-     <y>6</y>
-     <width>6</width>
-     <height>6</height>
-    </rect>
-     <number>6</number>
-     <number>6</number>
-     <number>6</number>
-    </property>
     <item>
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
@@ -36,17 +25,6 @@
         <string>Input</string>
        </attribute>
        <layout class="QVBoxLayout" name="inputTabLayout">
-        <property name="contentsMargins">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>0</width>
-     <height>0</height>
-    </rect>
-         <number>0</number>
-         <number>0</number>
-         <number>0</number>
-        </property>
         <item>
          <widget class="QTextEdit" name="input_textedit">
           <property name="readOnly">
@@ -61,17 +39,6 @@
         <string>LOWDIN Input</string>
        </attribute>
        <layout class="QVBoxLayout" name="convertedTabLayout">
-        <property name="contentsMargins">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>0</width>
-     <height>0</height>
-    </rect>
-         <number>0</number>
-         <number>0</number>
-         <number>0</number>
-        </property>
         <item>
          <widget class="QTextEdit" name="translated_textedit"/>
         </item>
@@ -82,17 +49,6 @@
         <string>Output</string>
        </attribute>
        <layout class="QVBoxLayout" name="outputTabLayout">
-        <property name="contentsMargins">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>0</width>
-     <height>0</height>
-    </rect>
-         <number>0</number>
-         <number>0</number>
-         <number>0</number>
-        </property>
         <item>
          <widget class="QTextEdit" name="output_textedit">
           <property name="readOnly">
@@ -151,6 +107,7 @@
      <string>File</string>
     </property>
     <addaction name="actionOpen_File"/>
+    <addaction name="actionRecent"/>
     <addaction name="actionSave"/>
     <addaction name="actionSave_As"/>
     <addaction name="separator"/>
@@ -163,7 +120,6 @@
     </property>
     <addaction name="actionConversion_Dialog"/>
     <addaction name="actionAdd_Electron"/>
-    <addaction name="actionAdd_Particle"/>
    </widget>
    <widget class="QMenu" name="menuGeometry">
     <property name="title">
@@ -209,7 +165,7 @@
   </action>
   <action name="actionAdd_Electron">
    <property name="text">
-    <string>Add Electron</string>
+    <string>Add Particle</string>
    </property>
   </action>
   <action name="actionAdd_Particle">
@@ -290,6 +246,11 @@
   <action name="actionLOL_map">
    <property name="text">
     <string>LOL map</string>
+   </property>
+  </action>
+  <action name="actionRecent">
+   <property name="text">
+    <string>Recent</string>
    </property>
   </action>
  </widget>

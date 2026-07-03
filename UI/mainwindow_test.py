@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'UI/mainwindow.ui'
+# Form implementation generated from reading ui file 'mainwindow.ui'
 #
 # Created by: PyQt6 UI code generator 6.10.2
 #
@@ -16,14 +16,12 @@ class Ui_MainWindow(object):
         self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.centralLayout = QtWidgets.QVBoxLayout(self.centralwidget)
-        self.centralLayout.setContentsMargins(6, 6, 6, 6)
         self.centralLayout.setObjectName("centralLayout")
         self.tabWidget = QtWidgets.QTabWidget(parent=self.centralwidget)
         self.tabWidget.setObjectName("tabWidget")
         self.Input = QtWidgets.QWidget()
         self.Input.setObjectName("Input")
         self.inputTabLayout = QtWidgets.QVBoxLayout(self.Input)
-        self.inputTabLayout.setContentsMargins(0, 0, 0, 0)
         self.inputTabLayout.setObjectName("inputTabLayout")
         self.input_textedit = QtWidgets.QTextEdit(parent=self.Input)
         self.input_textedit.setReadOnly(True)
@@ -33,7 +31,6 @@ class Ui_MainWindow(object):
         self.Converted_Input = QtWidgets.QWidget()
         self.Converted_Input.setObjectName("Converted_Input")
         self.convertedTabLayout = QtWidgets.QVBoxLayout(self.Converted_Input)
-        self.convertedTabLayout.setContentsMargins(0, 0, 0, 0)
         self.convertedTabLayout.setObjectName("convertedTabLayout")
         self.translated_textedit = QtWidgets.QTextEdit(parent=self.Converted_Input)
         self.translated_textedit.setObjectName("translated_textedit")
@@ -42,7 +39,6 @@ class Ui_MainWindow(object):
         self.Output = QtWidgets.QWidget()
         self.Output.setObjectName("Output")
         self.outputTabLayout = QtWidgets.QVBoxLayout(self.Output)
-        self.outputTabLayout.setContentsMargins(0, 0, 0, 0)
         self.outputTabLayout.setObjectName("outputTabLayout")
         self.output_textedit = QtWidgets.QTextEdit(parent=self.Output)
         self.output_textedit.setReadOnly(True)
@@ -119,7 +115,10 @@ class Ui_MainWindow(object):
         self.actionELF_map.setObjectName("actionELF_map")
         self.actionLOL_map = QtGui.QAction(parent=MainWindow)
         self.actionLOL_map.setObjectName("actionLOL_map")
+        self.actionRecent = QtGui.QAction(parent=MainWindow)
+        self.actionRecent.setObjectName("actionRecent")
         self.menuFile.addAction(self.actionOpen_File)
+        self.menuFile.addAction(self.actionRecent)
         self.menuFile.addAction(self.actionSave)
         self.menuFile.addAction(self.actionSave_As)
         self.menuFile.addSeparator()
@@ -127,7 +126,6 @@ class Ui_MainWindow(object):
         self.menuFile.addSeparator()
         self.menuEdit.addAction(self.actionConversion_Dialog)
         self.menuEdit.addAction(self.actionAdd_Electron)
-        self.menuEdit.addAction(self.actionAdd_Particle)
         self.menuGeometry.addAction(self.actionAdd_Geometry)
         self.menuGeometry.addAction(self.actionPlot_Geometry)
         self.menuGeometry.addSeparator()
@@ -163,7 +161,7 @@ class Ui_MainWindow(object):
         self.menuRun_Test.setTitle(_translate("MainWindow", "Run Test"))
         self.menuRun_openWFN.setTitle(_translate("MainWindow", "Run openWFN "))
         self.actionOpen_File.setText(_translate("MainWindow", "Open File"))
-        self.actionAdd_Electron.setText(_translate("MainWindow", "Add Electron"))
+        self.actionAdd_Electron.setText(_translate("MainWindow", "Add Particle"))
         self.actionAdd_Particle.setText(_translate("MainWindow", "Add Positron"))
         self.actionPlot_Geometry.setText(_translate("MainWindow", "Plot Geometry"))
         self.actionExit.setText(_translate("MainWindow", "Exit"))
@@ -180,3 +178,14 @@ class Ui_MainWindow(object):
         self.actionOrbital_plot.setText(_translate("MainWindow", "Orbital plot"))
         self.actionELF_map.setText(_translate("MainWindow", "ELF map"))
         self.actionLOL_map.setText(_translate("MainWindow", "LOL map"))
+        self.actionRecent.setText(_translate("MainWindow", "Recent"))
+
+
+if __name__ == "__main__":
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    ui = Ui_MainWindow()
+    ui.setupUi(MainWindow)
+    MainWindow.show()
+    sys.exit(app.exec())

@@ -1,43 +1,47 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QInputDialog, QMessageBox, QProgressDialog, QMenu, QVBoxLayout
+from PyQt6.QtGui import QFont, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (
+    QDialog, QInputDialog, QMessageBox, QProgressDialog, QMenu,
+    QPushButton, QVBoxLayout,
+)
 from UI.geomvisualizator import Ui_Form
 from model.geometryeditor import GeometryEditor
 from model.variablesglobales import ATOMIC_WEIGHT
 
 
 ATOM_CHOICES = [
-    "H",
-    "C",
-    "N",
-    "O",
-    "F",
-    "P",
-    "S",
-    "Cl",
-    "Br",
-    "I",
+    "H", "He",
+    "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+    "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar",
+    "K", "Ca", "Ti", "Fe", "Cu", "Zn", "Br", "I",
 ]
+
+PARTICLE_CHOICES = ["e-", "e+", "U-", "U+"]
 
 
 class GeometryDialogStudy(QDialog):
     # Set by the main window before opening the dialog to match the active theme
-    plotter_background = "black"
+    plotter_background = "#1e1e2e"
 
-    def __init__(self, atoms, parent=None):
+    def __init__(self, atoms, parent=None, particles=None):
         super().__init__(parent)
         self.ui = Ui_Form()
         self.ui.setupUi(self)
 
-        self.setWindowTitle("Geometry Editor Study")
+        self.setWindowTitle("Geometry Editor")
+        self.resize(1100, 750)
 
-        self.geometry_editor = GeometryEditor(atoms)
+        self.geometry_editor = GeometryEditor(atoms, particles=particles)
         self.pending_action = None
         self.pending_symbol = None
 
         self.plotter = self.ui.pyvista_widget
-        self.plotter.setCursor(Qt.CursorShape.CrossCursor)
         self.plotter.enable_trackball_style()
         self.plotter.add_camera_orientation_widget()
+
+        self.ui.infotextbox.setFont(QFont("Monospace", 9))
+        self.ui.infotextbox.setReadOnly(True)
+        self.ui.infotextbox.setLineWrapMode(self.ui.infotextbox.LineWrapMode.NoWrap)
 
         # Selection mode state
         self._selection_mode = False
@@ -47,22 +51,40 @@ class GeometryDialogStudy(QDialog):
         self._first_draw = True
         self._saved_style = None
 
-        # 'S' key toggles selection mode from inside the plotter
+        # Keyboard shortcuts
         self.plotter.add_key_event('s', self._toggle_selection_mode)
+        self.plotter.add_key_event('a', self._start_add_mode)
+        self.plotter.add_key_event('x', self._start_remove_mode)
+        self.plotter.add_key_event('p', self._start_add_particle_mode)
 
-        # Right-click context menu via Qt (works independently of VTK)
+        # Right-click context menu
         self.plotter.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.plotter.customContextMenuRequested.connect(self._show_context_menu)
 
-        # Make selection button checkable so it shows active state
+        # Make selection button checkable
         self.ui.selectionbutton.setCheckable(True)
+        self.ui.selectionbutton.setToolTip("Toggle selection mode (S)")
         self.ui.selectionbutton.clicked.connect(self._toggle_selection_mode)
 
+        self.ui.addatombutton.setToolTip("Add atom at click position (A)")
         self.ui.addatombutton.clicked.connect(self._start_add_mode)
+        self.ui.removeatoms.setToolTip("Remove selected atoms (X)")
         self.ui.removeatoms.clicked.connect(self._start_remove_mode)
+        self.ui.optimizebutton.setToolTip("Optimize geometry with UFF/MMFF force field")
         self.ui.optimizebutton.clicked.connect(self._optimize_geometry)
         self.ui.ok_cancel_buttonBox.accepted.connect(self.accept)
         self.ui.ok_cancel_buttonBox.rejected.connect(self.reject)
+
+        # Add Particle button
+        self._add_particle_btn = QPushButton("Add Particle")
+        self._add_particle_btn.setToolTip("Place e-/e+/U-/U+ particle (P)")
+        layout = self.ui.verticalLayout_2
+        layout.insertWidget(layout.indexOf(self.ui.removeatoms) + 1, self._add_particle_btn)
+        self._add_particle_btn.clicked.connect(self._start_add_particle_mode)
+
+        # Undo / Redo
+        QShortcut(QKeySequence.StandardKey.Undo, self).activated.connect(self._undo)
+        QShortcut(QKeySequence.StandardKey.Redo, self).activated.connect(self._redo)
 
         self._redraw()
 
@@ -77,6 +99,14 @@ class GeometryDialogStudy(QDialog):
     def closeEvent(self, event):
         self.plotter.close()
         super().closeEvent(event)
+
+    def _undo(self):
+        if self.geometry_editor.undo():
+            self._redraw()
+
+    def _redo(self):
+        if self.geometry_editor.redo():
+            self._redraw()
 
     def _start_add_mode(self):
         atom, accepted = QInputDialog.getItem(
@@ -102,25 +132,50 @@ class GeometryDialogStudy(QDialog):
         )
 
     def _start_remove_mode(self):
-        if not self.geometry_editor.get_geometry():
-            QMessageBox.information(self, "No atoms", "There are no atoms to remove.")
+        if not self.geometry_editor.get_geometry() and not self.geometry_editor.particles:
+            QMessageBox.information(self, "Nothing to remove", "There are no atoms or particles to remove.")
             return
 
-        # If atoms are already selected, remove them immediately
-        if self.geometry_editor.selected_indices:
-            indices = sorted(self.geometry_editor.selected_indices, reverse=True)
-            for idx in indices:
-                self.geometry_editor.remove_atom(idx)
-            self.geometry_editor.clear_selection()
+        # If anything is already selected, remove it immediately
+        has_selection = (self.geometry_editor.selected_indices or
+                         self.geometry_editor.selected_particle_indices)
+        if has_selection:
+            self.geometry_editor.remove_selected()
             self._redraw()
             return
 
-        # Otherwise enter selection mode and ask the user to click an atom
+        # Otherwise enter selection mode and ask the user to click
         self.pending_action = "remove"
         self.pending_symbol = None
         if not self._selection_mode:
             self._toggle_selection_mode()
-        self._update_info("Remove mode active.\nClick an atom or rubber-band select, then click Remove Atoms again.")
+        self._update_info("Remove mode active.\nClick an atom/particle or rubber-band select, then click Remove again.")
+
+    def _start_add_particle_mode(self):
+        ptype, accepted = QInputDialog.getItem(
+            self,
+            "Select Particle",
+            "Particle type:",
+            PARTICLE_CHOICES,
+            0,
+            False,
+        )
+        if not accepted:
+            return
+
+        self.pending_action = "add_particle"
+        self.pending_symbol = ptype
+
+        if not self._selection_mode:
+            self._toggle_selection_mode()
+
+        self._update_info(
+            f"Add particle mode active.\nSelected: {ptype}\nClick anywhere in the visualizer to place it."
+        )
+
+
+    def get_particles(self):
+        return self.geometry_editor.get_particles()
 
     # -------------------------------------------------------- selection mode
     def _toggle_selection_mode(self):
@@ -174,12 +229,39 @@ class GeometryDialogStudy(QDialog):
         iren = self.plotter.iren.interactor
         x, y = iren.GetEventPosition()
 
-        # --- add mode: place atom at clicked 3-D position then exit ---
-        if self.pending_action == "add" and not self._rb_active:
+        # --- add mode: place atom/particle at clicked 3-D position then exit ---
+        if self.pending_action in ("add", "add_particle") and not self._rb_active:
+            # Try mesh pick first; fall back to focal-plane projection
             picker = iren.GetPicker()
             picker.Pick(x, y, 0, self.plotter.renderer)
-            pos = picker.GetPickPosition()
-            self.geometry_editor.add_atom(self.pending_symbol, *pos)
+            if picker.GetActor() is not None:
+                pos = picker.GetPickPosition()
+            else:
+                # Project screen point onto the camera focal plane
+                renderer = self.plotter.renderer
+                renderer.SetDisplayPoint(x, y, 0)
+                renderer.DisplayToWorld()
+                near = renderer.GetWorldPoint()[:3]
+                renderer.SetDisplayPoint(x, y, 1)
+                renderer.DisplayToWorld()
+                far = renderer.GetWorldPoint()[:3]
+                # Intersect ray with the plane at focal point depth
+                import numpy as _np
+                cam = self.plotter.camera
+                focal = _np.array(cam.focal_point)
+                direction = _np.array(far) - _np.array(near)
+                view_dir = _np.array(cam.position) - focal
+                view_dir = view_dir / (_np.linalg.norm(view_dir) + 1e-12)
+                denom = _np.dot(direction, -view_dir)
+                if abs(denom) > 1e-12:
+                    t = _np.dot(focal - _np.array(near), -view_dir) / denom
+                    pos = tuple(_np.array(near) + t * direction)
+                else:
+                    pos = tuple(focal)
+            if self.pending_action == "add":
+                self.geometry_editor.add_atom(self.pending_symbol, *pos)
+            else:
+                self.geometry_editor.add_particle(self.pending_symbol, *pos)
             self.pending_action = None
             self.pending_symbol = None
             self._rb_start = None
@@ -192,20 +274,23 @@ class GeometryDialogStudy(QDialog):
             self.geometry_editor.clear_selection()
 
         if self._rb_active:
-            hit = self.geometry_editor.indices_in_screen_rect(
+            atoms_hit, particles_hit = self.geometry_editor.indices_in_screen_rect(
                 self.plotter.renderer,
                 self._rb_start[0], self._rb_start[1],
                 x, y,
             )
-            self.geometry_editor.select_indices(hit)
+            self.geometry_editor.select_indices(atoms_hit)
+            self.geometry_editor.select_particle_indices(particles_hit)
         else:
             picker = iren.GetPicker()
             picker.Pick(x, y, 0, self.plotter.renderer)
             if picker.GetActor() is not None:
                 pos = picker.GetPickPosition()
-                idx = self.geometry_editor.find_nearest_index(*pos)
-                if idx is not None:
+                obj_type, idx = self.geometry_editor.find_nearest(*pos)
+                if obj_type == "atom":
                     self.geometry_editor.toggle_selection(idx)
+                elif obj_type == "particle":
+                    self.geometry_editor.toggle_particle_selection(idx)
 
         self._rb_start = None
         self._rb_active = False
@@ -304,68 +389,45 @@ class GeometryDialogStudy(QDialog):
     def _show_context_menu(self, position):
         menu = QMenu(self)
 
-        # Center to Origin action
-        center_action = menu.addAction("Center at Origin")
-        center_action.triggered.connect(self._center_at_origin)
-
-        # Show center of mass action
-        show_com_action = menu.addAction("Show Center of Mass")
-        show_com_action.triggered.connect(self._show_center_of_mass)
-
-        # Show Z-matrix action
-        show_zmatrix_action = menu.addAction("Show Z-Matrix")
-        show_zmatrix_action.triggered.connect(self._show_zmatrix)
+        # Edit actions
+        edit_menu = menu.addMenu("Edit")
+        edit_menu.addAction("Undo (Ctrl+Z)").triggered.connect(self._undo)
+        edit_menu.addAction("Redo (Ctrl+Y)").triggered.connect(self._redo)
+        edit_menu.addSeparator()
+        edit_menu.addAction("Add Atom (A)").triggered.connect(self._start_add_mode)
+        edit_menu.addAction("Add Particle (P)").triggered.connect(self._start_add_particle_mode)
+        edit_menu.addAction("Remove Selected (X)").triggered.connect(self._start_remove_mode)
 
         menu.addSeparator()
 
-        # Coordinates to Plane
-        plane_action_xy = menu.addAction("Coordinates to the XY Plane")
-        plane_action_xy.triggered.connect(
-            lambda: self._set_coordinates_to_plane("xy")
-        )
+        # Transform actions
+        menu.addAction("Center at Origin").triggered.connect(self._center_at_origin)
+        menu.addAction("Show Center of Mass").triggered.connect(self._show_center_of_mass)
 
-        plane_action_xz = menu.addAction("Coordinates to the XZ Plane")
-        plane_action_xz.triggered.connect(
-            lambda: self._set_coordinates_to_plane("xz")
-        )
-
-        plane_action_yz = menu.addAction("Coordinates to the YZ Plane")
-        plane_action_yz.triggered.connect(
-            lambda: self._set_coordinates_to_plane("yz")
-        )
+        plane_menu = menu.addMenu("Align to Plane")
+        plane_menu.addAction("XY Plane").triggered.connect(lambda: self._set_coordinates_to_plane("xy"))
+        plane_menu.addAction("XZ Plane").triggered.connect(lambda: self._set_coordinates_to_plane("xz"))
+        plane_menu.addAction("YZ Plane").triggered.connect(lambda: self._set_coordinates_to_plane("yz"))
 
         menu.addSeparator()
 
-        # Reset camera action
-        reset_camera_action = menu.addAction("Reset Camera")
-        reset_camera_action.triggered.connect(lambda: self.plotter.reset_camera())
+        # View actions
+        menu.addAction("Show Z-Matrix").triggered.connect(self._show_zmatrix)
+        menu.addAction("Reset Camera").triggered.connect(lambda: self.plotter.reset_camera())
 
-        # Show menu at cursor position
         menu.exec(self.plotter.mapToGlobal(position))
 
     def _center_at_origin(self):
-        """Center the molecule at (0, 0, 0)."""
         if not self.geometry_editor.get_geometry():
-            QMessageBox.information(self, "No atoms", "Load geometry first.")
             return
-
         self.geometry_editor.set_coordinates_to_center()
         self._redraw()
-        QMessageBox.information(self, "Success", "Molecule centered at origin.")
 
     def _set_coordinates_to_plane(self, plane):
-        """Rotate geometry to align with plane using PCA."""
         if not self.geometry_editor.get_geometry():
-            QMessageBox.information(self, "No atoms", "Load geometry first.")
             return
-
-        # Rotate geometry (no camera change)
         self.geometry_editor.set_coordinates_to_plane(plane)
-
-        # Redraw geometry
         self._redraw()
-
-        QMessageBox.information(self, "Success", f"Aligned to {plane.upper()} plane.")
 
     def _show_center_of_mass(self):
         """Display the current center of mass coordinates."""

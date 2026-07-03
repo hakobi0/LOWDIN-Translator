@@ -8,46 +8,82 @@ from model.variablesglobales import ATOMIC_WEIGHT
 from model.geometryoptimizer import GeometryOptimizer
 
 
+# CPK / Jmol-style element colors (hex)
 ELEMENT_COLORS = {
-    "H": "white",
-    "C": "gray",
-    "N": "blue",
-    "O": "red",
-    "F": "green",
-    "Cl": "green",
-    "S": "yellow",
-    "P": "orange",
-    "B": "pink",
-    "Si": "tan",
-    "Br": "darkred",
-    "I": "purple",
+    "H":  "#FFFFFF", "He": "#D9FFFF",
+    "Li": "#CC80FF", "Be": "#C2FF00", "B":  "#FFB5B5", "C":  "#505050",
+    "N":  "#3050F8", "O":  "#FF0D0D", "F":  "#90E050", "Ne": "#B3E3F5",
+    "Na": "#AB5CF2", "Mg": "#8AFF00", "Al": "#BFA6A6", "Si": "#F0C8A0",
+    "P":  "#FF8000", "S":  "#FFFF30", "Cl": "#1FF01F", "Ar": "#80D1E3",
+    "K":  "#8F40D4", "Ca": "#3DFF00", "Ti": "#BFC2C7", "Fe": "#E06633",
+    "Cu": "#C88033", "Zn": "#7D80B0", "Br": "#A62929", "I":  "#940094",
 }
 
+# Van der Waals radii scaled for ball-and-stick (Angstrom)
 ELEMENT_RADII = {
-    "H": 0.25,
-    "C": 0.40,
-    "N": 0.38,
-    "O": 0.35,
-    "F": 0.30,
-    "Cl": 0.45,
-    "S": 0.50,
-    "P": 0.47,
-    "B": 0.42,
-    "Si": 0.55,
-    "Br": 0.50,
-    "I": 0.55,
+    "H":  0.31, "He": 0.28,
+    "Li": 0.40, "Be": 0.38, "B":  0.38, "C":  0.38,
+    "N":  0.36, "O":  0.34, "F":  0.32, "Ne": 0.30,
+    "Na": 0.44, "Mg": 0.42, "Al": 0.42, "Si": 0.42,
+    "P":  0.40, "S":  0.40, "Cl": 0.40, "Ar": 0.38,
+    "K":  0.48, "Ca": 0.46, "Ti": 0.44, "Fe": 0.42,
+    "Cu": 0.40, "Zn": 0.40, "Br": 0.42, "I":  0.46,
+}
+
+# Covalent radii sum threshold for bond detection (Angstrom)
+COVALENT_RADII = {
+    "H": 0.31, "He": 0.28, "Li": 1.28, "Be": 0.96, "B": 0.84, "C": 0.76,
+    "N": 0.71, "O": 0.66, "F": 0.57, "Ne": 0.58, "Na": 1.66, "Mg": 1.41,
+    "Al": 1.21, "Si": 1.11, "P": 1.07, "S": 1.05, "Cl": 1.02, "Ar": 1.06,
+    "K": 2.03, "Ca": 1.76, "Ti": 1.60, "Fe": 1.52, "Cu": 1.32, "Zn": 1.22,
+    "Br": 1.20, "I": 1.39,
 }
 
 BOND_THRESHOLD = 1.8
+BOND_RADIUS = 0.07
+SELECTION_COLOR = "#FFD700"
 
 
 class GeometryEditor:
-    def __init__(self, geometry=None):
+    def __init__(self, geometry=None, particles=None):
         self.geometry = []
+        self.particles = []  # list of (type, x, y, z) where type is "e-", "e+", etc.
         self.selected_indices = set()
+        self.selected_particle_indices = set()
         self._selection_order = []   # tracks click order for angle/dihedral
+        self._undo_stack = []
+        self._redo_stack = []
         if geometry:
             self.set_geometry(geometry)
+        if particles:
+            self.particles = [(t, float(x), float(y), float(z)) for t, x, y, z in particles]
+
+    def _snapshot(self):
+        return (list(self.geometry), list(self.particles))
+
+    def _save_undo(self):
+        self._undo_stack.append(self._snapshot())
+        self._redo_stack.clear()
+
+    def undo(self):
+        if not self._undo_stack:
+            return False
+        self._redo_stack.append(self._snapshot())
+        geometry, particles = self._undo_stack.pop()
+        self.geometry = geometry
+        self.particles = particles
+        self.clear_selection()
+        return True
+
+    def redo(self):
+        if not self._redo_stack:
+            return False
+        self._undo_stack.append(self._snapshot())
+        geometry, particles = self._redo_stack.pop()
+        self.geometry = geometry
+        self.particles = particles
+        self.clear_selection()
+        return True
 
     def set_geometry(self, geometry):
         self.geometry = [
@@ -59,15 +95,41 @@ class GeometryEditor:
         return list(self.geometry)
 
     def add_atom(self, symbol, x, y, z):
+        self._save_undo()
         atom = (str(symbol).capitalize(), float(x), float(y), float(z))
         self.geometry.append(atom)
-        print(self.geometry)
         return atom
 
     def remove_atom(self, index=-1):
         if not self.geometry:
             return None
+        self._save_undo()
         return self.geometry.pop(index)
+
+    def add_particle(self, ptype, x, y, z):
+        self._save_undo()
+        p = (str(ptype), float(x), float(y), float(z))
+        self.particles.append(p)
+        return p
+
+    def remove_particle(self, index=-1):
+        if not self.particles:
+            return None
+        self._save_undo()
+        return self.particles.pop(index)
+
+    def remove_selected(self):
+        if not self.selected_indices and not self.selected_particle_indices:
+            return
+        self._save_undo()
+        for idx in sorted(self.selected_particle_indices, reverse=True):
+            self.particles.pop(idx)
+        for idx in sorted(self.selected_indices, reverse=True):
+            self.geometry.pop(idx)
+        self.clear_selection()
+
+    def get_particles(self):
+        return list(self.particles)
 
     def remove_nearest_atom(self, x, y, z, max_distance=0.8):
         if not self.geometry:
@@ -88,16 +150,19 @@ class GeometryEditor:
 
         return self.geometry.pop(best_index)
 
-    def detect_bonds(self, threshold=BOND_THRESHOLD):
+    def detect_bonds(self, tolerance=0.45):
+        """Detect bonds using sum of covalent radii + tolerance."""
         bonds = []
         total = len(self.geometry)
 
         for i in range(total):
-            _, x1, y1, z1 = self.geometry[i]
+            s1, x1, y1, z1 = self.geometry[i]
+            r1 = COVALENT_RADII.get(s1, 0.77)
             for j in range(i + 1, total):
-                _, x2, y2, z2 = self.geometry[j]
+                s2, x2, y2, z2 = self.geometry[j]
+                r2 = COVALENT_RADII.get(s2, 0.77)
                 distance = math.dist((x1, y1, z1), (x2, y2, z2))
-                if 0.1 < distance <= threshold:
+                if 0.4 < distance <= (r1 + r2 + tolerance):
                     bonds.append((i, j))
 
         return bonds
@@ -123,8 +188,15 @@ class GeometryEditor:
     def summary_text(self):
         lines = [f"Atoms: {len(self.geometry)}", ""]
         for index, (symbol, x, y, z) in enumerate(self.geometry, start=1):
-            marker = ">> " if (index - 1) in self.selected_indices else "   "
-            lines.append(f"{marker}{index:02d}. {symbol}  {x:.6f}  {y:.6f}  {z:.6f}")
+            marker = ">" if (index - 1) in self.selected_indices else " "
+            lines.append(f"{marker}{index:2d}. {symbol:<2s} {x:9.4f} {y:9.4f} {z:9.4f}")
+
+        if self.particles:
+            lines.append("")
+            lines.append(f"Particles: {len(self.particles)}")
+            for i, (ptype, px, py, pz) in enumerate(self.particles, start=1):
+                marker = ">" if (i - 1) in self.selected_particle_indices else " "
+                lines.append(f"{marker}{i:2d}. {ptype:<3s} {px:9.4f} {py:9.4f} {pz:9.4f}")
 
         # Use selection order so the user controls which atom is the vertex
         sel = self._selection_order
@@ -212,6 +284,7 @@ class GeometryEditor:
         optimized_atoms = optimizer.optimize(method=method, max_iters=max_iters)
 
         if optimized_atoms:
+            self._save_undo()
             self.set_geometry(optimized_atoms)
             energy = optimizer.get_energy()
             msg = f"Optimization successful using {method}"
@@ -250,6 +323,7 @@ class GeometryEditor:
     def set_coordinates_to_center(self):
         """Now I want to set the center of the molecule to 0,0
               and the coordinates to the relative positions of this center of mass"""
+        self._save_undo()
         x_center, y_center, z_center = self.get_mass_center()
         relative_geometry = []
 
@@ -274,11 +348,10 @@ class GeometryEditor:
         Returns:
             new_geometry list
         """
+        self._save_undo()
         if not self.geometry or len(self.geometry) < 3:
-            # Not enough points for PCA, fall back to simple projection
             return self._simple_plane_projection(plane)
 
-        # Extract coordinates as numpy array
         coords = np.array([[x, y, z] for _, x, y, z in self.geometry])
 
         # Center at origin
@@ -496,15 +569,51 @@ class GeometryEditor:
             self.selected_indices.add(index)
             self._selection_order.append(index)
 
+    def toggle_particle_selection(self, index):
+        if index in self.selected_particle_indices:
+            self.selected_particle_indices.discard(index)
+        else:
+            self.selected_particle_indices.add(index)
+
     def select_indices(self, indices):
         for idx in indices:
             if idx not in self.selected_indices:
                 self.selected_indices.add(idx)
                 self._selection_order.append(idx)
 
+    def select_particle_indices(self, indices):
+        for idx in indices:
+            self.selected_particle_indices.add(idx)
+
     def clear_selection(self):
         self.selected_indices.clear()
         self._selection_order.clear()
+        self.selected_particle_indices.clear()
+
+    def find_nearest(self, x, y, z):
+        """Return ('atom', index) or ('particle', index) for the nearest object."""
+        picked = (float(x), float(y), float(z))
+        best_type = None
+        best_index = None
+        best_dist = float('inf')
+
+        for i, (_, ax, ay, az) in enumerate(self.geometry):
+            d = math.dist(picked, (ax, ay, az))
+            if d < best_dist:
+                best_dist = d
+                best_type = "atom"
+                best_index = i
+
+        for i, (_, px, py, pz) in enumerate(self.particles):
+            d = math.dist(picked, (px, py, pz))
+            if d < best_dist:
+                best_dist = d
+                best_type = "particle"
+                best_index = i
+
+        if best_type is None:
+            return None, None
+        return best_type, best_index
 
     def find_nearest_index(self, x, y, z):
         """Return the index of the atom nearest to (x, y, z), or None."""
@@ -518,50 +627,58 @@ class GeometryEditor:
         return best_index
 
     def indices_in_screen_rect(self, renderer, x1, y1, x2, y2):
-        """Return atom indices whose projected screen coords fall inside the rectangle."""
+        """Return (atom_indices, particle_indices) inside the screen rectangle."""
         min_x, max_x = min(x1, x2), max(x1, x2)
         min_y, max_y = min(y1, y2), max(y1, y2)
-        inside = []
+        atoms_inside = []
         for idx, (_, ax, ay, az) in enumerate(self.geometry):
             renderer.SetWorldPoint(ax, ay, az, 1.0)
             renderer.WorldToDisplay()
             sx, sy, _ = renderer.GetDisplayPoint()
             if min_x <= sx <= max_x and min_y <= sy <= max_y:
-                inside.append(idx)
-        return inside
+                atoms_inside.append(idx)
+        particles_inside = []
+        for idx, (_, px, py, pz) in enumerate(self.particles):
+            renderer.SetWorldPoint(px, py, pz, 1.0)
+            renderer.WorldToDisplay()
+            sx, sy, _ = renderer.GetDisplayPoint()
+            if min_x <= sx <= max_x and min_y <= sy <= max_y:
+                particles_inside.append(idx)
+        return atoms_inside, particles_inside
 
-    def render_in_plotter(self, plotter, reset_camera=False, background="black"):
+    def render_in_plotter(self, plotter, reset_camera=False, background="#1e1e2e"):
         camera = plotter.camera.copy()
 
+        render_window = plotter.render_window
+        render_window.SetOffScreenRendering(True)
+
         plotter.clear()
-        plotter.show_grid()
         plotter.set_background(background)
 
         for atom_index, (symbol, x, y, z) in enumerate(self.geometry):
-            sphere = pv.Sphere(
-                center=(x, y, z),
-                radius=ELEMENT_RADII.get(symbol, 0.35),
-            )
-            color = ELEMENT_COLORS.get(symbol, "lightgray")
+            radius = ELEMENT_RADII.get(symbol, 0.35)
+            sphere = pv.Sphere(center=(x, y, z), radius=radius)
+            color = ELEMENT_COLORS.get(symbol, "#AAAAAA")
+            selected = atom_index in self.selected_indices
             plotter.add_mesh(
                 sphere,
-                color=color,
+                color=SELECTION_COLOR if selected else color,
                 smooth_shading=True,
                 name=f"atom-{atom_index}",
                 pickable=True,
+                render=False,
             )
-            if atom_index in self.selected_indices:
-                # Wireframe halo slightly larger than the atom sphere
-                halo = pv.Sphere(
-                    center=(x, y, z),
-                    radius=ELEMENT_RADII.get(symbol, 0.35) * 1.35,
-                )
+            if selected:
+                halo = pv.Sphere(center=(x, y, z), radius=radius * 1.4)
                 plotter.add_mesh(
                     halo,
-                    color="yellow",
-                    opacity=0.35,
+                    color=SELECTION_COLOR,
+                    opacity=0.2,
+                    style="wireframe",
+                    line_width=1.5,
                     name=f"sel-{atom_index}",
                     pickable=False,
+                    render=False,
                 )
 
         for bond_index, (i, j) in enumerate(self.detect_bonds()):
@@ -569,11 +686,39 @@ class GeometryEditor:
             _, x2, y2, z2 = self.geometry[j]
             line = pv.Line((x1, y1, z1), (x2, y2, z2))
             plotter.add_mesh(
-                line.tube(radius=0.06),
-                color="darkgray",
+                line.tube(radius=BOND_RADIUS, n_sides=8),
+                color="#C0C0C0",
+                smooth_shading=True,
                 name=f"bond-{bond_index}",
                 pickable=False,
+                render=False,
             )
+
+        _particle_colors = {"e-": "#00E5FF", "e+": "#FF4081", "U-": "#448AFF", "U+": "#FF6E40"}
+        for p_index, (ptype, px, py, pz) in enumerate(self.particles):
+            selected = p_index in self.selected_particle_indices
+            sphere = pv.Sphere(center=(px, py, pz), radius=0.13)
+            plotter.add_mesh(
+                sphere,
+                color=SELECTION_COLOR if selected else _particle_colors.get(ptype, "#FFFFFF"),
+                opacity=0.85,
+                smooth_shading=True,
+                name=f"particle-{p_index}",
+                pickable=True,
+                render=False,
+            )
+            if selected:
+                halo = pv.Sphere(center=(px, py, pz), radius=0.22)
+                plotter.add_mesh(
+                    halo,
+                    color=SELECTION_COLOR,
+                    opacity=0.2,
+                    style="wireframe",
+                    line_width=1.5,
+                    name=f"psel-{p_index}",
+                    pickable=False,
+                    render=False,
+                )
 
         if reset_camera and self.geometry:
             coords = np.array([[x, y, z] for _, x, y, z in self.geometry])
@@ -582,3 +727,6 @@ class GeometryEditor:
             plotter.reset_camera()
         else:
             plotter.camera = camera
+
+        render_window.SetOffScreenRendering(False)
+        plotter.render()

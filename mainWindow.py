@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QFileDialog, QInputDialog,
-    QLabel, QMainWindow, QMessageBox, QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox, QListWidget
+    QLabel, QMainWindow, QMenu, QMessageBox, QWidget, QHBoxLayout, QComboBox, QDoubleSpinBox, QListWidget
 )
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor
 
@@ -322,18 +322,11 @@ class AddParticlesDialog(QDialog):
         row_widget.deleteLater()
 
     def get_particles(self):
-        electrons = []
-        positrons = []
-
+        """Return list of (type, x, y, z) tuples for all particle rows."""
+        particles = []
         for _, tipo, x, y, z in self.rows:
-            coords = (x.value(), y.value(), z.value())
-
-            if tipo.currentText() == "e-":
-                electrons.append(coords)
-            else:
-                positrons.append(coords)
-
-        return electrons, positrons
+            particles.append((tipo.currentText(), x.value(), y.value(), z.value()))
+        return particles
 
 
 class ConversionDialogStudy(QDialog, Ui_Dialog):
@@ -525,12 +518,14 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
 
         # Add extra particles from parent
         parent = self.parent()
-        if parent:
-            for x, y, z in parent.extra_electrons:
-                fmt.agregar_electrones("H", x, y, z)
-
-            for x, y, z in parent.extra_positrons:
-                fmt.agregar_positrones(x, y, z)
+        if parent and hasattr(parent, 'extra_particles'):
+            for ptype, x, y, z in parent.extra_particles:
+                if ptype == "e-":
+                    fmt.agregar_electrones("H", x, y, z)
+                elif ptype == "e+":
+                    fmt.agregar_positrones(x, y, z)
+                elif ptype in ("U-", "U+"):
+                    fmt.agregar_positrones(x, y, z)
 
         fmt.formatear_geometria()
         self.lowdin_input = fmt.crear_input_lowdin()
@@ -546,8 +541,7 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         self.current_atoms = []
         self.last_conversion = None
         self.current_file = None  # Track current file for Save
-        self.extra_electrons = []
-        self.extra_positrons = []
+        self.extra_particles = []  # list of (type, x, y, z)
 
         self._highlighter = LowdinHighlighter(self.translated_textedit.document(), scheme="Light (GitHub)")
         self._build_view_menu()
@@ -560,6 +554,13 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             self.actionSave.triggered.connect(self.save_file)
         if hasattr(self, 'actionSave_As'):
             self.actionSave_As.triggered.connect(self.save_file_as)
+
+        # Recent files submenu (replace the placeholder action)
+        self._recent_menu = QMenu("Recent Files", self)
+        self.menuFile.insertMenu(self.actionRecent, self._recent_menu)
+        self.actionRecent.setVisible(False)
+        self._max_recent = 10
+        self._update_recent_menu()
 
         # Edit/Tools menu actions
         self.actionConversion_Dialog.triggered.connect(self.opendialog)
@@ -600,8 +601,59 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         init = primerinicio.PrimerInicio()
         self.available_basis = init.basis
 
+    # ------------------------------------------------------------------
+    # Recent files
+    # ------------------------------------------------------------------
+
+    def _recent_files_path(self):
+        from pathlib import Path
+        return Path.home() / ".config" / "lowdintranslator" / "recent_files.txt"
+
+    def _load_recent_files(self):
+        path = self._recent_files_path()
+        if not path.exists():
+            return []
+        lines = path.read_text().strip().splitlines()
+        return [l for l in lines if l and os.path.isfile(l)]
+
+    def _save_recent_files(self, files):
+        path = self._recent_files_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(files[:self._max_recent]) + "\n")
+
+    def _add_to_recent(self, filepath):
+        filepath = os.path.abspath(filepath)
+        recent = self._load_recent_files()
+        if filepath in recent:
+            recent.remove(filepath)
+        recent.insert(0, filepath)
+        self._save_recent_files(recent[:self._max_recent])
+        self._update_recent_menu()
+
+    def _update_recent_menu(self):
+        self._recent_menu.clear()
+        recent = self._load_recent_files()
+        if not recent:
+            action = self._recent_menu.addAction("(No recent files)")
+            action.setEnabled(False)
+            return
+        for filepath in recent:
+            display = os.path.basename(filepath)
+            action = self._recent_menu.addAction(display)
+            action.setToolTip(filepath)
+            action.triggered.connect(lambda checked, f=filepath: self._open_recent(f))
+
+    def _open_recent(self, filepath):
+        if not os.path.isfile(filepath):
+            QMessageBox.warning(self, "File not found", f"File no longer exists:\n{filepath}")
+            self._update_recent_menu()
+            return
+        with open(filepath, "r") as handle:
+            contenido = handle.read()
+        self.input_textedit.setPlainText(contenido)
+        self._finish_load(contenido, filepath)
+
     def _build_view_menu(self):
-        from PyQt6.QtWidgets import QMenu
         from PyQt6.QtGui import QAction, QActionGroup
 
         view_menu = QMenu("View", self)
@@ -623,8 +675,8 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             for a in syntax_group.actions():
                 a.setChecked(a.text() == default_syntax)
 
-        act_light.triggered.connect(lambda: _apply_theme(LIGHT_STYLESHEET, "Light (GitHub)", "white"))
-        act_dark.triggered.connect( lambda: _apply_theme(DARK_STYLESHEET,  "Dark (VS Code)", "black"))
+        act_light.triggered.connect(lambda: _apply_theme(LIGHT_STYLESHEET, "Light (GitHub)", "#f0f0f0"))
+        act_dark.triggered.connect( lambda: _apply_theme(DARK_STYLESHEET,  "Dark (VS Code)", "#1e1e2e"))
 
         for act in (act_light, act_dark):
             theme_group.addAction(act)
@@ -660,8 +712,12 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             contenido = handle.read()
 
         self.input_textedit.setPlainText(contenido)
+        self._finish_load(contenido, archivo)
 
-        # .lowdin files: show directly and parse for conversion dialog editing
+    def _finish_load(self, contenido, archivo):
+        """Shared logic after reading a file (used by loadfile and recent files)."""
+        self._add_to_recent(archivo)
+
         if archivo.endswith(".lowdin"):
             self.translated_textedit.setPlainText(contenido)
             self.current_file = archivo
@@ -678,8 +734,8 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             atomos = self._atoms_from_geometry_text(geometria_bruta)
 
         self.current_atoms = atomos
+        self.extra_particles = []
 
-        # Handle None values from parser
         mult = datos.get("multiplicidad", 1)
         if mult is None:
             mult = 1
@@ -705,8 +761,6 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         }
 
         if basis_unknown:
-            # Basis could not be detected or resolved — open the dialog immediately
-            # so the user can pick one rather than generating a broken input silently.
             if raw_base in ("", "NONE"):
                 msg = "No basis set was detected in this file."
             else:
@@ -754,7 +808,7 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         dialog = AddParticlesDialog(self)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.extra_electrons, self.extra_positrons = dialog.get_particles()
+            self.extra_particles = dialog.get_particles()
             # Rebuild input if we have a previous conversion
             if self.last_conversion:
                 self._rebuild_lowdin_from_state()
@@ -790,7 +844,7 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         dialog.exec()
 
     def open_geometry_editor(self):
-        dialog = GeometryDialogStudy(self.current_atoms, self)
+        dialog = GeometryDialogStudy(self.current_atoms, self, particles=self.extra_particles)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -800,15 +854,13 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
 
         self.current_atoms = new_atoms
         geometria_bruta = dialog.get_geometria_bruta()
+        self.extra_particles = dialog.get_particles()
 
         if self.last_conversion is not None:
             self.last_conversion["atomos"] = self.current_atoms[:]
             self.last_conversion["geometria_bruta"] = geometria_bruta
             self._rebuild_lowdin_from_state()
         else:
-            # No file loaded — geometry was drawn from scratch.
-            # Bootstrap last_conversion and open ConversionDialog so the user
-            # can pick method, basis, charge and multiplicity.
             self.last_conversion = {
                 "metodo": "RHF",
                 "base": self.available_basis[0] if self.available_basis else "",
@@ -841,12 +893,14 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         fmt.agregar_protones()
         fmt.agregar_electrones_desde_atomos()
 
-        # Add extra particles
-        for x, y, z in self.extra_electrons:
-            fmt.agregar_electrones("H", x, y, z)
-
-        for x, y, z in self.extra_positrons:
-            fmt.agregar_positrones(x, y, z)
+        # Add extra particles by type
+        for ptype, x, y, z in self.extra_particles:
+            if ptype == "e-":
+                fmt.agregar_electrones("H", x, y, z)
+            elif ptype == "e+":
+                fmt.agregar_positrones(x, y, z)
+            elif ptype in ("U-", "U+"):
+                fmt.agregar_positrones(x, y, z)
 
         fmt.formatear_geometria()
         self.translated_textedit.setPlainText(fmt.crear_input_lowdin())
@@ -1153,6 +1207,63 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to save file:\n{e}")
 
+    def _lowdin_env(self):
+        """Build subprocess environment with LOWDIN library paths resolved."""
+        env = os.environ.copy()
+
+        # Source lowdinvars.sh to find LOWDIN_HOME if available
+        lowdin_home = env.get("LOWDIN_HOME", "")
+        lib_dirs = []
+
+        # Precompiled layout: ~/openLOWDIN/dependencies/lib
+        deps_lib = os.path.expanduser("~/openLOWDIN/dependencies/lib")
+        if os.path.isdir(deps_lib):
+            lib_dirs.append(deps_lib)
+
+        # Source-compiled layout: $LOWDIN_HOME/lib
+        if lowdin_home:
+            home_lib = os.path.join(lowdin_home, "lib")
+            if os.path.isdir(home_lib):
+                lib_dirs.append(home_lib)
+
+        # Also check the lowdinvars.sh referenced by openlowdin for LOWDIN_HOME
+        vars_candidates = [
+            os.path.expanduser("~/bin/.openlowdin/lowdinvars.sh"),
+            os.path.expanduser("~/.local/bin/.openlowdin/lowdinvars.sh"),
+            "/opt/openlowdin/bin/.openlowdin/lowdinvars.sh",
+        ]
+        for vf in vars_candidates:
+            if os.path.isfile(vf):
+                try:
+                    with open(vf) as f:
+                        for line in f:
+                            if line.startswith("LOWDIN_HOME="):
+                                lh = line.split("=", 1)[1].strip().strip('"')
+                                lh_lib = os.path.join(lh, "lib")
+                                if os.path.isdir(lh_lib) and lh_lib not in lib_dirs:
+                                    lib_dirs.append(lh_lib)
+                except Exception:
+                    pass
+                break
+
+        if lib_dirs:
+            existing = env.get("LD_LIBRARY_PATH", "")
+            env["LD_LIBRARY_PATH"] = ":".join(lib_dirs) + (":" + existing if existing else "")
+
+        # Ensure openlowdin is on PATH
+        bin_candidates = [
+            os.path.expanduser("~/bin"),
+            os.path.expanduser("~/openLOWDIN/bin"),
+            os.path.expanduser("~/.local/bin"),
+        ]
+        path = env.get("PATH", "")
+        for bd in bin_candidates:
+            if os.path.isdir(bd) and bd not in path:
+                path = bd + ":" + path
+        env["PATH"] = path
+
+        return env
+
     def run_lowdin(self):
         """Run LOWDIN calculation in an isolated directory."""
         carpeta = QFileDialog.getExistingDirectory(self, "Select output folder")
@@ -1168,14 +1279,18 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             QMessageBox.critical(self, "Error", f"Failed to write input file:\n{e}")
             return
 
-        # Run openlowdin with relative path (important!)
+        # Build an environment that includes LOWDIN's shared libraries.
+        # Works for both precompiled (~/.../dependencies/lib) and
+        # source-compiled ($LOWDIN_HOME/lib) installations.
         try:
+            env = self._lowdin_env()
             result = subprocess.run(
-                ["openlowdin", "-i", "input.lowdin"],  # Use relative path
-                cwd=carpeta,  # Working directory
+                ["openlowdin", "-i", "input.lowdin"],
+                cwd=carpeta,
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=600,
+                env=env,
             )
 
             # Read LOWDIN output file if it exists
