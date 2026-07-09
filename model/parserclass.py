@@ -7,6 +7,7 @@ class Parser:
     def __init__(self, contenido):
         self.contenido = contenido
         self.geometria_bruta = None   # always initialised; set by extraer_geometria_optimizada
+        self.optimization_converged = False
         self.formato = self.detectar_formato()
 
     def detectar_formato(self):
@@ -67,6 +68,7 @@ class Parser:
         matches = re.findall(patron_orca_out, self.contenido, re.DOTALL)
         if matches:
             self.geometria_bruta = matches[-1].strip()
+            self.optimization_converged = "THE OPTIMIZATION HAS CONVERGED" in self.contenido
             return self.geometria_bruta
 
         # ORCA input: inline geometry between "* xyz ..." and closing "*"
@@ -177,5 +179,6 @@ class Parser:
             "multiplicidad":    mult,
             "carga":            carga,
             "metodo_real":      self.extraer_metodo_real(),
-            "titulo":           "Input Generado con LOWDIN-Translator"
+            "titulo":           "Input Generado con LOWDIN-Translator",
+            "optimization_converged": self.optimization_converged,
         }

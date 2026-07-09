@@ -7,7 +7,17 @@ NUMERO_ATOMICO = {
     'Fe': 26,'Co': 27,'Ni': 28, 'Cu': 29, 'Zn': 30,
     'Ga': 31,'Ge': 32,'As': 33, 'Se': 34, 'Br': 35,
     'Kr': 36,'Rb': 37,'Sr': 38, 'Y': 39,  'Zr': 40,
-    'I': 53, 'Xe': 54,'Cs': 55, 'Ba': 56,
+    'Nb': 41,'Mo': 42,'Tc': 43, 'Ru': 44, 'Rh': 45,
+    'Pd': 46,'Ag': 47,'Cd': 48, 'In': 49, 'Sn': 50,
+    'Sb': 51,'Te': 52,'I': 53,  'Xe': 54, 'Cs': 55,
+    'Ba': 56,'La': 57,'Ce': 58, 'Pr': 59, 'Nd': 60,
+    'Pm': 61,'Sm': 62,'Eu': 63, 'Gd': 64, 'Tb': 65,
+    'Dy': 66,'Ho': 67,'Er': 68, 'Tm': 69, 'Yb': 70,
+    'Lu': 71,'Hf': 72,'Ta': 73, 'W': 74,  'Re': 75,
+    'Os': 76,'Ir': 77,'Pt': 78, 'Au': 79, 'Hg': 80,
+    'Tl': 81,'Pb': 82,'Bi': 83, 'Po': 84, 'At': 85,
+    'Rn': 86,'Fr': 87,'Ra': 88, 'Ac': 89, 'Th': 90,
+    'Pa': 91,'U': 92,
 }
 
 ATOMIC_WEIGHT = {
@@ -40,10 +50,31 @@ ATOMIC_WEIGHT = {
     'As': 74.922,  # Arsénico
     'Se': 78.971,  # Selenio
     'Br': 79.904,  # Bromo
+    'Sr': 87.62,   # Estroncio
+    'Zr': 91.224,  # Zirconio
+    'Mo': 95.95,   # Molibdeno
+    'Ru': 101.07,  # Rutenio
+    'Rh': 102.91,  # Rodio
+    'Pd': 106.42,  # Paladio
     'Ag': 107.87,  # Plata
+    'Cd': 112.41,  # Cadmio
+    'In': 114.82,  # Indio
+    'Sn': 118.71,  # Estaño
+    'Sb': 121.76,  # Antimonio
+    'Te': 127.60,  # Telurio
     'I': 126.90,   # Yodo
+    'Ba': 137.33,  # Bario
+    'W': 183.84,   # Wolframio
+    'Re': 186.21,  # Renio
+    'Os': 190.23,  # Osmio
+    'Ir': 192.22,  # Iridio
     'Pt': 195.08,  # Platino
     'Au': 196.97,  # Oro
+    'Hg': 200.59,  # Mercurio
+    'Pb': 207.2,   # Plomo
+    'Bi': 208.98,  # Bismuto
+    'Th': 232.04,  # Torio
+    'U': 238.03,   # Uranio
 }
 
 ATOM_CHOICES = [
@@ -65,8 +96,13 @@ valid_methods = {   # Para remplazar los métodos que son invalidos en LOWDIN pe
     "UHF":"UHF",
     "RKS":"RKS",
     "UKS":"UKS",
+    "FOCK":"FOCK",
+    "LDA":"LDA",
+    "PBE":"PBE",
+    "BLYP":"BLYP",
     "B3LYP":"B3LYP",
-    "MP2":"MP2", # mollerPlessetCorrection=2
+    "PBE0":"PBE0",
+    "MP2":"MP2",
     "MM":"MM"
 }
 

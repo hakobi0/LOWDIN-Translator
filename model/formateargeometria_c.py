@@ -249,11 +249,12 @@ class formatear_geometria():
         return "\n".join(lines)
 
     def _bloque_control(self):
-        if not self.control_options:
-            return ""
-        lineas = ["\t" + opt for opt in self.control_options]
+        lineas = []
         if self.metodo_real in self._dft_functionals:
-            lineas.insert(0, f'\telectronExchangeCorrelationFunctional = "{self.metodo_real}"')
+            lineas.append(f'\telectronExchangeCorrelationFunctional = "{self.metodo_real}"')
+        lineas.extend("\t" + opt for opt in self.control_options)
+        if not lineas:
+            return ""
         return "\n".join(lineas)
 
     def _bloque_outputs(self):

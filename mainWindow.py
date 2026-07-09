@@ -736,6 +736,9 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         self.current_atoms = atomos
         self.extra_particles = []
 
+        if datos.get("optimization_converged"):
+            self.statusbar.showMessage("Optimized geometry loaded (ORCA optimization converged)", 8000)
+
         mult = datos.get("multiplicidad", 1)
         if mult is None:
             mult = 1
