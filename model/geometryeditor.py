@@ -4,6 +4,7 @@ import numpy as np
 import pyvista as pv
 
 from model.variablesglobales import ATOMIC_WEIGHT
+from model.transforms import rotation_matrix, apply_matrix
 
 from model.geometryoptimizer import GeometryOptimizer
 
@@ -336,6 +337,98 @@ class GeometryEditor:
             relative_geometry.append(relative_atom)
         self.geometry = relative_geometry
         return relative_geometry
+
+    def _transform_targets(self):
+        """
+        Return (atom_indices, particle_indices) that a transform should act on:
+        the current selection if anything is selected, otherwise every atom and
+        particle.
+        """
+        if self.selected_indices or self.selected_particle_indices:
+            return set(self.selected_indices), set(self.selected_particle_indices)
+        return set(range(len(self.geometry))), set(range(len(self.particles)))
+
+    def _center_of(self, atom_indices, particle_indices):
+        """
+        Mass-weighted center of the given atoms (particles are massless and only
+        used as a fallback centroid when no atoms are involved). With all atoms
+        this equals get_mass_center().
+        """
+        total_mass = 0.0
+        acc = np.zeros(3)
+        for i in atom_indices:
+            s, x, y, z = self.geometry[i]
+            m = ATOMIC_WEIGHT.get(s, 1.0)
+            total_mass += m
+            acc += m * np.array([x, y, z])
+        if total_mass > 0:
+            c = acc / total_mass
+            return (float(c[0]), float(c[1]), float(c[2]))
+        pts = [self.particles[i][1:] for i in particle_indices]
+        if pts:
+            c = np.array(pts, dtype=float).mean(axis=0)
+            return (float(c[0]), float(c[1]), float(c[2]))
+        return (0.0, 0.0, 0.0)
+
+    def translate(self, dx, dy, dz):
+        """
+        Rigidly shift the current selection by (dx, dy, dz) Angstrom, or the
+        whole system if nothing is selected. Mirrors the legacy GEN transMov
+        routine. Atoms and particles move together.
+        """
+        if not self.geometry and not self.particles:
+            return
+        atom_idx, part_idx = self._transform_targets()
+        if not atom_idx and not part_idx:
+            return
+        dx, dy, dz = float(dx), float(dy), float(dz)
+        self._save_undo()
+        self.geometry = [
+            (s, x + dx, y + dy, z + dz) if i in atom_idx else (s, x, y, z)
+            for i, (s, x, y, z) in enumerate(self.geometry)
+        ]
+        self.particles = [
+            (t, x + dx, y + dy, z + dz) if i in part_idx else (t, x, y, z)
+            for i, (t, x, y, z) in enumerate(self.particles)
+        ]
+
+    def rotate(self, ax_deg, ay_deg, az_deg, about_center=True):
+        """
+        Rotate the whole system by Euler angles (degrees) about the X, Y and Z
+        axes, applied in that order (Rz . Ry . Rx), mirroring the legacy GEN
+        rotation routine.
+
+        Acts on the current selection if anything is selected, otherwise on the
+        whole system.
+
+        Args:
+            ax_deg, ay_deg, az_deg: rotation angles in degrees.
+            about_center: if True (default) rotate around the center of mass of
+                the affected atoms so they spin in place; if False rotate around
+                the world origin like the original GEN program.
+
+        Both atoms and particles are rotated so they stay together.
+        """
+        if not self.geometry and not self.particles:
+            return
+
+        atom_idx, part_idx = self._transform_targets()
+        if not atom_idx and not part_idx:
+            return
+
+        matrix = rotation_matrix(ax_deg, ay_deg, az_deg)
+        pivot = self._center_of(atom_idx, part_idx) if about_center else (0.0, 0.0, 0.0)
+
+        self._save_undo()
+
+        self.geometry = [
+            (s, *apply_matrix(x, y, z, matrix, pivot)) if i in atom_idx else (s, x, y, z)
+            for i, (s, x, y, z) in enumerate(self.geometry)
+        ]
+        self.particles = [
+            (t, *apply_matrix(x, y, z, matrix, pivot)) if i in part_idx else (t, x, y, z)
+            for i, (t, x, y, z) in enumerate(self.particles)
+        ]
 
     def set_coordinates_to_plane(self, plane):
         """

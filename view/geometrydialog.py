@@ -2,7 +2,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QShortcut, QKeySequence
 from PyQt6.QtWidgets import (
     QDialog, QInputDialog, QMessageBox, QProgressDialog, QMenu,
-    QPushButton, QVBoxLayout,
+    QPushButton, QVBoxLayout, QFormLayout, QDoubleSpinBox, QDialogButtonBox,
+    QLabel,
 )
 from UI.geomvisualizator import Ui_Form
 from model.geometryeditor import GeometryEditor
@@ -70,6 +71,8 @@ class GeometryDialogStudy(QDialog):
         self.ui.addatombutton.clicked.connect(self._start_add_mode)
         self.ui.removeatoms.setToolTip("Remove selected atoms (X)")
         self.ui.removeatoms.clicked.connect(self._start_remove_mode)
+        self.ui.rotatebutton.setToolTip("Rotate the whole geometry by X/Y/Z angles")
+        self.ui.rotatebutton.clicked.connect(self._rotate_geometry)
         self.ui.optimizebutton.setToolTip("Optimize geometry with UFF/MMFF force field")
         self.ui.optimizebutton.clicked.connect(self._optimize_geometry)
         self.ui.ok_cancel_buttonBox.accepted.connect(self.accept)
@@ -404,6 +407,9 @@ class GeometryDialogStudy(QDialog):
         menu.addAction("Center at Origin").triggered.connect(self._center_at_origin)
         menu.addAction("Show Center of Mass").triggered.connect(self._show_center_of_mass)
 
+        menu.addAction("Translate...").triggered.connect(self._translate_geometry)
+        menu.addAction("Rotate...").triggered.connect(self._rotate_geometry)
+
         plane_menu = menu.addMenu("Align to Plane")
         plane_menu.addAction("XY Plane").triggered.connect(lambda: self._set_coordinates_to_plane("xy"))
         plane_menu.addAction("XZ Plane").triggered.connect(lambda: self._set_coordinates_to_plane("xz"))
@@ -421,6 +427,96 @@ class GeometryDialogStudy(QDialog):
         if not self.geometry_editor.get_geometry():
             return
         self.geometry_editor.set_coordinates_to_center()
+        self._redraw()
+
+    def _transform_scope_label(self):
+        n_atoms = len(self.geometry_editor.selected_indices)
+        n_particles = len(self.geometry_editor.selected_particle_indices)
+        if not n_atoms and not n_particles:
+            return "whole geometry"
+        parts = []
+        if n_atoms:
+            parts.append(f"{n_atoms} atom{'s' if n_atoms != 1 else ''}")
+        if n_particles:
+            parts.append(f"{n_particles} particle{'s' if n_particles != 1 else ''}")
+        return "selected " + " + ".join(parts)
+
+    def _translate_geometry(self):
+        if not self.geometry_editor.get_geometry() and not self.geometry_editor.particles:
+            QMessageBox.information(self, "No atoms", "Load geometry first.")
+            return
+
+        scope = self._transform_scope_label()
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Translate ({scope})")
+        form = QFormLayout(dialog)
+        form.addRow(QLabel(f"Moving: {scope}"))
+
+        spins = []
+        for axis in ("X", "Y", "Z"):
+            spin = QDoubleSpinBox(dialog)
+            spin.setRange(-1000.0, 1000.0)
+            spin.setDecimals(3)
+            spin.setSingleStep(0.1)
+            spin.setSuffix(" Å")
+            form.addRow(f"Shift along {axis}:", spin)
+            spins.append(spin)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        dx, dy, dz = (s.value() for s in spins)
+        if dx == 0.0 and dy == 0.0 and dz == 0.0:
+            return
+
+        self.geometry_editor.translate(dx, dy, dz)
+        self._redraw()
+
+    def _rotate_geometry(self):
+        if not self.geometry_editor.get_geometry() and not self.geometry_editor.particles:
+            QMessageBox.information(self, "No atoms", "Load geometry first.")
+            return
+
+        scope = self._transform_scope_label()
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Rotate ({scope})")
+        form = QFormLayout(dialog)
+        form.addRow(QLabel(f"Rotating: {scope}"))
+
+        spins = []
+        for axis in ("X", "Y", "Z"):
+            spin = QDoubleSpinBox(dialog)
+            spin.setRange(-360.0, 360.0)
+            spin.setDecimals(1)
+            spin.setSingleStep(5.0)
+            spin.setSuffix(" °")
+            form.addRow(f"Rotation about {axis}:", spin)
+            spins.append(spin)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        ax, ay, az = (s.value() for s in spins)
+        if ax == 0.0 and ay == 0.0 and az == 0.0:
+            return
+
+        self.geometry_editor.rotate(ax, ay, az)
         self._redraw()
 
     def _set_coordinates_to_plane(self, plane):
