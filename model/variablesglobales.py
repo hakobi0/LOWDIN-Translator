@@ -244,28 +244,221 @@ nuclear_basis =  [
 ]
 
 
-# Tareas para el metodo RHF/UHF
+# ---------------------------------------------------------------------------
+# Method groups for CONTROL option filtering
+# ---------------------------------------------------------------------------
+_ALL = {"RHF", "UHF", "FOCK", "RKS", "UKS", "LDA", "PBE", "BLYP", "B3LYP", "PBE0", "MP2", "MM"}
+_SCF = {"RHF", "UHF", "FOCK", "RKS", "UKS", "LDA", "PBE", "BLYP", "B3LYP", "PBE0", "MP2"}
+_HF  = {"RHF", "UHF", "FOCK"}
+_DFT = {"RKS", "UKS", "LDA", "PBE", "BLYP", "B3LYP", "PBE0"}
+_MP2 = {"MP2"}
 
-tareas_HF = ['writeCoefficientsInBinary', 'writeEigenValuesInBinary', 'readCoefficients', 'readCoefficientsInBinary',
-             'readEigenValues', 'readEigenValuesInBinary', 'noScf', 'finiteMassCorrection', 'removeTranslationalContamination',
-             'buildTwoParticlesMatrixForOneParticle', 'buildMixedDensityMatrix']
+# ---------------------------------------------------------------------------
+# CONTROL_OPTIONS registry
+#   Each entry: name, type (logical/character/integer/float),
+#   values (list for combobox), category (for grouping), methods (set)
+# ---------------------------------------------------------------------------
+CONTROL_OPTIONS = [
+    # --- Info and Units ---
+    {"name": "printLevel", "type": "integer",
+     "values": ["0", "1", "5", "6", "7", "8"], "category": "Info and Units", "methods": _ALL},
+    {"name": "units", "type": "character",
+     "values": ["ANGS", "BOHRS"], "category": "Info and Units", "methods": _ALL},
+    {"name": "formatNumberOfColumns", "type": "integer",
+     "values": ["5", "10", "15"], "category": "Info and Units", "methods": _ALL},
 
-tareas_integrales = ['integralStackSize', 'integralScheme']
+    # --- General ---
+    {"name": "transformToCenterOfMass", "type": "logical",
+     "values": [".true.", ".false."], "category": "General", "methods": _ALL},
+    {"name": "isThereExternalPotential", "type": "logical",
+     "values": [".true.", ".false."], "category": "General", "methods": _ALL},
+    {"name": "isThereInterparticlePotential", "type": "logical",
+     "values": [".true.", ".false."], "category": "General", "methods": _ALL},
+    {"name": "isThereFrozenParticle", "type": "logical",
+     "values": [".true.", ".false."], "category": "General", "methods": _ALL},
+    {"name": "dimensionality", "type": "integer",
+     "values": ["3", "2", "1", "0"], "category": "General", "methods": _ALL},
 
-tareas_SCF = ['scfNonElectronicEnergyTolerance', 'scfElectronicEnergyTolerance', 'nonElectronicDensityMatrixTolerance',
-              'nonElectronicDensityMatrixTolerance', 'totalEnergyTolerance', 'scfNonElectronicMaxIterations', 'scfElectronicMaxIterations',
-              'scfGlobalMaximumIterations', 'convergenceMethod', 'iterationScheme', 'scfElectronicTypeGuess', 'scfNonElectronicTypeGuess',
-              'scfConvergenceCriterium', 'debugScfs']
+    # --- SCF ---
+    {"name": "totalEnergyTolerance", "type": "float",
+     "values": ["1.0E-8", "1.0E-6", "1.0E-10", "1.0E-12"], "category": "SCF", "methods": _SCF},
+    {"name": "electronicEnergyTolerance", "type": "float",
+     "values": ["1.0E-8", "1.0E-6", "1.0E-10"], "category": "SCF", "methods": _SCF},
+    {"name": "nonelectronicEnergyTolerance", "type": "float",
+     "values": ["1.0E-8", "1.0E-6", "1.0E-10"], "category": "SCF", "methods": _SCF},
+    {"name": "scfGlobalMaxIterations", "type": "integer",
+     "values": ["200", "100", "500", "1000"], "category": "SCF", "methods": _SCF},
+    {"name": "scfElectronicMaxIterations", "type": "integer",
+     "values": ["50", "100", "200"], "category": "SCF", "methods": _SCF},
+    {"name": "scfNonelectronicMaxIterations", "type": "integer",
+     "values": ["50", "100", "200"], "category": "SCF", "methods": _SCF},
+    {"name": "convergenceMethod", "type": "character",
+     "values": ["NONE", "DAMPING", "DIIS", "LEVELSHIFTING"], "category": "SCF", "methods": _SCF},
+    {"name": "iterationScheme", "type": "character",
+     "values": ["NONELECRONICFULLY", "ELECTRONICFULLY", "CONVERGEDINDIVIDUALLY"],
+     "category": "SCF", "methods": _SCF},
+    {"name": "scfConvergenceCriterium", "type": "character",
+     "values": ["ENERGY", "DENSITY", "BOTH"], "category": "SCF", "methods": _SCF},
+    {"name": "scfElectronicTypeGuess", "type": "character",
+     "values": ["HCORE", "MIXED"], "category": "SCF", "methods": _SCF},
+    {"name": "scfNonelectronicTypeGuess", "type": "character",
+     "values": ["HCORE", "MIXED"], "category": "SCF", "methods": _SCF},
+    {"name": "activateLevelShifting", "type": "logical",
+     "values": [".true.", ".false."], "category": "SCF", "methods": _SCF},
+    {"name": "electronicLevelShifting", "type": "float",
+     "values": ["0.0", "0.5", "1.0", "2.0"], "category": "SCF", "methods": _SCF},
+    {"name": "nonelectronicLevelShifting", "type": "float",
+     "values": ["0.0", "0.5", "1.0", "2.0"], "category": "SCF", "methods": _SCF},
+    {"name": "forceClosedShell", "type": "logical",
+     "values": [".true.", ".false."], "category": "SCF", "methods": _SCF},
+    {"name": "exchangeOrbitalsInSCF", "type": "logical",
+     "values": [".true.", ".false."], "category": "SCF", "methods": _SCF},
+    {"name": "diisErrorInDamping", "type": "logical",
+     "values": [".true.", ".false."], "category": "SCF", "methods": _SCF},
+    {"name": "waveFunctionScale", "type": "float",
+     "values": ["1000.0", "500.0", "2000.0"], "category": "SCF", "methods": _SCF},
+    {"name": "listSize", "type": "integer",
+     "values": ["-20", "-10", "-30", "-50"], "category": "SCF", "methods": _SCF},
 
-# MP2 Tasks
+    # --- Hartree-Fock ---
+    {"name": "frozen", "type": "character",
+     "values": ["NONE"], "category": "Hartree-Fock", "methods": _HF | _MP2},
+    {"name": "freezeNonElectronicOrbitals", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF | _MP2},
+    {"name": "freezeElectronicOrbitals", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF | _MP2},
+    {"name": "hartreeProductGuess", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "readCoefficients", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF | _MP2},
+    {"name": "noSCF", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "finiteMassCorrection", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "isOpenShell", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "getGradients", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "HFprintEigenvalues", "type": "logical",
+     "values": [".true.", ".false."], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "HFPrintEigenvectors", "type": "character",
+     "values": ["OCCUPIED", "ALL", "NONE"], "category": "Hartree-Fock", "methods": _HF},
+    {"name": "multipoleOrder", "type": "integer",
+     "values": ["0", "1", "2", "3"], "category": "Hartree-Fock", "methods": _HF},
 
-MP2_tasks = ['propagatorTheoryCorrection=2','IonizeMO', 'ionizeSpecie', 'ptTransitionOperator', 'MOfractionOccupation']
+    # --- DFT ---
+    {"name": "electronExchangeCorrelationFunctional", "type": "character",
+     "values": ["NONE", "LDA", "PBE", "BLYP", "B3LYP", "PBE0"],
+     "category": "DFT", "methods": _DFT},
+    {"name": "electronCorrelationFunctional", "type": "character",
+     "values": ["NONE", "VWN", "LYP", "PW91", "PBE", "P86"],
+     "category": "DFT", "methods": _DFT},
+    {"name": "electronExchangeFunctional", "type": "character",
+     "values": ["NONE", "SLATER", "BECKE88", "PBE", "PW91"],
+     "category": "DFT", "methods": _DFT},
+    {"name": "gridStorage", "type": "character",
+     "values": ["DISK", "MEMORY"], "category": "DFT", "methods": _DFT},
+    {"name": "gridRadialPoints", "type": "integer",
+     "values": ["35", "50", "75", "100"], "category": "DFT", "methods": _DFT},
+    {"name": "gridAngularPoints", "type": "integer",
+     "values": ["110", "194", "302", "434", "590"], "category": "DFT", "methods": _DFT},
+    {"name": "finalGridRadialPoints", "type": "integer",
+     "values": ["50", "75", "100", "150"], "category": "DFT", "methods": _DFT},
+    {"name": "finalGridAngularPoints", "type": "integer",
+     "values": ["302", "434", "590", "770"], "category": "DFT", "methods": _DFT},
+    {"name": "gridNumberOfShells", "type": "integer",
+     "values": ["5", "10", "15"], "category": "DFT", "methods": _DFT},
+    {"name": "polarizationOrder", "type": "integer",
+     "values": ["1", "2", "3"], "category": "DFT", "methods": _DFT},
+    {"name": "fukuiFunctions", "type": "logical",
+     "values": [".true.", ".false."], "category": "DFT", "methods": _DFT},
+    {"name": "auxiliaryDensity", "type": "logical",
+     "values": [".true.", ".false."], "category": "DFT", "methods": _DFT},
+    {"name": "subsystemEmbedding", "type": "logical",
+     "values": [".true.", ".false."], "category": "DFT", "methods": _DFT},
+    {"name": "localizeOrbitals", "type": "logical",
+     "values": [".true.", ".false."], "category": "DFT", "methods": _DFT},
 
-# Control
+    # --- MBPT / MP2 ---
+    {"name": "mpCorrection", "type": "integer",
+     "values": ["1", "2"], "category": "MBPT", "methods": _MP2},
+    {"name": "mpFrozenCoreBoundary", "type": "integer",
+     "values": ["0", "1", "2", "3"], "category": "MBPT", "methods": _MP2},
+    {"name": "mpOnlyElectronicCorrection", "type": "logical",
+     "values": [".true.", ".false."], "category": "MBPT", "methods": _MP2},
+    {"name": "epsteinNesbetCorrection", "type": "integer",
+     "values": ["1", "2"], "category": "MBPT", "methods": _MP2},
 
-unit_control = ['formatNumberOfColumns=', 'unitForOutputFile=', 'unitForMolecularOrbitalsFIle=', 'unitForMP2IntegralsFile=', 'printLevel=', 'units=']
+    # --- Propagator Theory ---
+    {"name": "ptOnlyOneSpecieCorrection", "type": "logical",
+     "values": [".true.", ".false."], "category": "Propagator Theory", "methods": _SCF},
+    {"name": "selfEnergyScan", "type": "logical",
+     "values": [".true.", ".false."], "category": "Propagator Theory", "methods": _SCF},
+    {"name": "ptTransitionOperator", "type": "logical",
+     "values": [".true.", ".false."], "category": "Propagator Theory", "methods": _SCF},
+    {"name": "ptJustOneOrbital", "type": "logical",
+     "values": [".true.", ".false."], "category": "Propagator Theory", "methods": _SCF},
+    {"name": "ptOrder", "type": "integer",
+     "values": ["1", "2", "3"], "category": "Propagator Theory", "methods": _SCF},
+    {"name": "ptP3Method", "type": "character",
+     "values": ["NONE", "P3", "EP3", "OVGF-A", "OVGF-B", "OVGF-C", "REN-P3"],
+     "category": "Propagator Theory", "methods": _SCF},
 
-general_control = ['method=', 'transformToCenterOfMass=', 'areThereDummyAtoms=',
-                   'areThereQDOPotentials=', 'setQDOEnergyZero=', 'isThereExternalPotential=',
-                   'isThereInterparticlePotential= ', 'isThereOutput=', 'isThereFrozenParticle=', 'dimensionality='
-                   ]
+    # --- Integrals ---
+    {"name": "integralStorage", "type": "character",
+     "values": ["DISK", "MEMORY", "DIRECT"], "category": "Integrals", "methods": _SCF},
+    {"name": "integralThreshold", "type": "float",
+     "values": ["1.0E-10", "1.0E-8", "1.0E-12"], "category": "Integrals", "methods": _SCF},
+    {"name": "integralStackSize", "type": "integer",
+     "values": ["30000", "50000", "100000"], "category": "Integrals", "methods": _SCF},
+    {"name": "integralsTransformationMethod", "type": "character",
+     "values": ["C", "B", "D"], "category": "Integrals", "methods": _MP2},
+
+    # --- CI ---
+    {"name": "configurationInteractionLevel", "type": "character",
+     "values": ["NONE", "CIS", "CISD", "CISD-", "CISD+", "CISDT", "CISDTQ", "SCI", "FCI"],
+     "category": "CI", "methods": _HF},
+    {"name": "numberOfCIStates", "type": "integer",
+     "values": ["1", "2", "3", "5", "10"], "category": "CI", "methods": _HF},
+    {"name": "CIdiagonalizationMethod", "type": "character",
+     "values": ["DSYEVX", "DSYEVR", "JADAMILU"], "category": "CI", "methods": _HF},
+    {"name": "CIdiagonalDressedShift", "type": "character",
+     "values": ["NONE", "CISD"], "category": "CI", "methods": _HF},
+    {"name": "CIstatesToPrint", "type": "integer",
+     "values": ["1", "2", "3", "5"], "category": "CI", "methods": _HF},
+    {"name": "CINaturalOrbitals", "type": "logical",
+     "values": [".true.", ".false."], "category": "CI", "methods": _HF},
+    {"name": "CISaveEigenVector", "type": "logical",
+     "values": [".true.", ".false."], "category": "CI", "methods": _HF},
+    {"name": "CILoadEigenVector", "type": "logical",
+     "values": [".true.", ".false."], "category": "CI", "methods": _HF},
+
+    # --- Miscellaneous ---
+    {"name": "MOFractionOccupation", "type": "float",
+     "values": ["1.0", "0.5", "0.0"], "category": "Miscellaneous", "methods": _SCF},
+    {"name": "ionizeMO", "type": "integer",
+     "values": ["0", "1", "2", "3"], "category": "Miscellaneous", "methods": _SCF},
+    {"name": "ionizeSpecies", "type": "character",
+     "values": ["NONE", "E-ALPHA", "E-BETA", "E-"], "category": "Miscellaneous", "methods": _SCF},
+
+]
+
+# Build lookup dict by name for fast access
+CONTROL_OPTIONS_BY_NAME = {opt["name"]: opt for opt in CONTROL_OPTIONS}
+
+
+def control_options_for_method(method):
+    """Return the subset of CONTROL_OPTIONS relevant to the given method string."""
+    return [opt for opt in CONTROL_OPTIONS if method in opt["methods"]]
+
+
+def format_control_value(opt_entry, raw_value):
+    """Format a value for the LOWDIN CONTROL block.
+
+    Character values get quoted, logical/numeric values are bare.
+    Returns the full 'key = value' string.
+    """
+    t = opt_entry["type"]
+    if t == "character":
+        return '{} = "{}"'.format(opt_entry["name"], raw_value)
+    return "{} = {}".format(opt_entry["name"], raw_value)

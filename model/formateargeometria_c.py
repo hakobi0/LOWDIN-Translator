@@ -170,22 +170,13 @@ class formatear_geometria():
         if not self.atomos:
             return
 
-        # Átomo más pesado (mayor número atómico) recibe la corrección de carga
-        def peso(sim):
-            return ATOMIC_NUMBERS.get(sim, 0)
-
-        atomos_ordenados = sorted(self.atomos, key=lambda a: peso(a[0]), reverse=True)
-        atomo_principal = atomos_ordenados[0][0]
-
-        # Cálculo de electrones totales y paridad
         total_e = sum(ATOMIC_NUMBERS.get(s, 0) for s, *_ in self.atomos) - self.carga
         open_shell = (total_e % 2 != 0) or (self.multiplicidad > 1)
 
         for i, (simbolo, x, y, z) in enumerate(self.atomos):
             add = 0
             mult_local = 1
-            if simbolo == atomo_principal and i == 0:
-                # Aquí aplicamos la corrección de carga total
+            if i == 0:
                 add = -self.carga
                 if open_shell:
                     mult_local = self.multiplicidad
@@ -250,7 +241,11 @@ class formatear_geometria():
 
     def _bloque_control(self):
         lineas = []
-        if self.metodo_real in self._dft_functionals:
+        user_sets_functional = any(
+            opt.startswith("electronExchangeCorrelationFunctional")
+            for opt in self.control_options
+        )
+        if self.metodo_real in self._dft_functionals and not user_sets_functional:
             lineas.append(f'\telectronExchangeCorrelationFunctional = "{self.metodo_real}"')
         lineas.extend("\t" + opt for opt in self.control_options)
         if not lineas:

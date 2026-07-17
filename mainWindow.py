@@ -2,6 +2,8 @@ import os
 import sys
 import subprocess
 
+from PyQt6.QtCore import Qt
+
 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 from PyQt6.QtWidgets import (
@@ -364,19 +366,35 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
         if kwargs.get("base_proton"):
             self.nuclear_qcombobox.setCurrentText(kwargs["base_proton"])
 
+        # --- Control options: two comboboxes (option name + value) ---
+        self._ctrl_options_data = variablesglobales.CONTROL_OPTIONS
         self.control_comboBox.addItem("")
-        self.control_comboBox.addItems(variablesglobales.tareas_integrales + variablesglobales.unit_control + variablesglobales.general_control)
+        self._value_comboBox = QComboBox()
+        self._value_comboBox.setEditable(True)
+        self._value_comboBox.setSizePolicy(
+            self.control_comboBox.sizePolicy())
 
-        # --- Control options list (multi-add) ---
+        self.controlLayout.setDirection(self.controlLayout.Direction.TopToBottom)
+        top_row = QHBoxLayout()
+        self.control_comboBox.setParent(None)
+        self.Task_pushButton.setParent(None)
+        top_row.addWidget(self.control_comboBox, 2)
+        top_row.addWidget(self._value_comboBox, 1)
+        top_row.addWidget(self.Task_pushButton, 0)
+        self.controlLayout.addLayout(top_row)
+
         self._control_list = QListWidget()
         self._control_list.setFixedHeight(80)
         self._control_list.setToolTip("Double-click an entry to remove it")
         self._control_list.itemDoubleClicked.connect(
             lambda item: self._control_list.takeItem(self._control_list.row(item))
         )
-        self.controlLayout.setDirection(self.controlLayout.Direction.TopToBottom)
         self.controlLayout.addWidget(self._control_list)
+
+        self.control_comboBox.currentTextChanged.connect(self._on_control_option_changed)
         self.Task_pushButton.clicked.connect(self._add_control_option)
+        self.metodo_combobox.currentTextChanged.connect(self._filter_control_options)
+        self._filter_control_options(self.metodo_combobox.currentText())
 
         # --- Validation panel (inserted above OK/Cancel) ---
         self._validation_label = QLabel()
@@ -440,12 +458,13 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
                 messages.append(("warning", basis_result["warning"]))
 
         # --- Method / spin validation ---
+        _dft_functionals = {"LDA", "PBE", "BLYP", "B3LYP", "PBE0"}
         if self.atomos:
             result = suggest_method(method, self.atomos, charge, mult)
             spin_messages = validation_summary(self.atomos, charge, mult, method)
 
             corrected = result["corrected_method"]
-            if corrected != method:
+            if corrected != method and method not in _dft_functionals:
                 self.metodo_combobox.blockSignals(True)
                 self.metodo_combobox.setCurrentText(corrected)
                 self.metodo_combobox.blockSignals(False)
@@ -482,13 +501,53 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
             opts.append("NB047File")
         return opts
 
-    def _add_control_option(self):
-        val = self.control_comboBox.currentText().strip()
-        if not val:
+    def _filter_control_options(self, method_text=None):
+        method = method_text or self.metodo_combobox.currentText()
+        self.control_comboBox.blockSignals(True)
+        self.control_comboBox.clear()
+        self.control_comboBox.addItem("")
+        current_category = None
+        for opt in self._ctrl_options_data:
+            if method not in opt["methods"]:
+                continue
+            cat = opt["category"]
+            if cat != current_category:
+                self.control_comboBox.addItem(f"--- {cat} ---")
+                idx = self.control_comboBox.count() - 1
+                self.control_comboBox.model().item(idx).setEnabled(False)
+                current_category = cat
+            self.control_comboBox.addItem(opt["name"])
+        self.control_comboBox.blockSignals(False)
+        self._on_control_option_changed(self.control_comboBox.currentText())
+
+    def _on_control_option_changed(self, name):
+        self._value_comboBox.clear()
+        opt = variablesglobales.CONTROL_OPTIONS_BY_NAME.get(name)
+        if not opt:
             return
-        existing = [self._control_list.item(i).text() for i in range(self._control_list.count())]
-        if val not in existing:
-            self._control_list.addItem(val)
+        self._value_comboBox.addItems(opt["values"])
+        self._value_comboBox.setEditable(opt["type"] in ("integer", "float"))
+
+    def _add_control_option(self):
+        name = self.control_comboBox.currentText().strip()
+        if not name or name.startswith("---"):
+            return
+        value = self._value_comboBox.currentText().strip()
+        if not value:
+            return
+        opt = variablesglobales.CONTROL_OPTIONS_BY_NAME.get(name)
+        if opt:
+            formatted = variablesglobales.format_control_value(opt, value)
+        else:
+            formatted = f"{name} = {value}"
+        existing = [self._control_list.item(i).text()
+                     for i in range(self._control_list.count())]
+        key = name + " ="
+        for i in range(self._control_list.count()):
+            if self._control_list.item(i).text().startswith(key):
+                self._control_list.takeItem(i)
+                break
+        self._control_list.addItem(formatted)
 
     def _collect_control_options(self):
         return [self._control_list.item(i).text() for i in range(self._control_list.count())]
@@ -570,6 +629,8 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             self.actionAdd_Electron.triggered.connect(self.open_particles_dialog)
         if hasattr(self, 'actionZ_Matrix_Representation'):
             self.actionZ_Matrix_Representation.triggered.connect(self.show_zmatrix)
+        if hasattr(self, 'actionRigid_Scan'):
+            self.actionRigid_Scan.triggered.connect(self.open_scan_dialog)
 
         # Multiwfn analysis actions
         if hasattr(self, 'actionElectron_Density_map'):
@@ -596,10 +657,16 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         # Connect run button if it exists
         if hasattr(self, 'run_button'):
             self.run_button.clicked.connect(self.run_lowdin)
+        if hasattr(self, 'actionRun_Batch_Scan'):
+            self.actionRun_Batch_Scan.triggered.connect(self.run_batch_scan)
 
     def first_run_check(self):
         init = primerinicio.PrimerInicio()
         self.available_basis = init.basis
+        # Validate basis names against every installed basis (all particle
+        # types), so a real basis is never wrongly flagged as unknown.
+        from model.basisnormalizer import set_available_basis
+        set_available_basis(getattr(init, "all_basis", init.basis))
 
     # ------------------------------------------------------------------
     # Recent files
@@ -747,6 +814,13 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         if carga is None:
             carga = 0
 
+        from model.inputvalidator import count_electrons
+        n_elec = count_electrons(self.current_atoms, carga)
+        if n_elec is not None and n_elec > 0:
+            unpaired = mult - 1
+            if (n_elec - unpaired) % 2 != 0:
+                mult = 2 if mult == 1 else mult + 1
+
         raw_base = datos.get("base_elec", "") or ""
         resolved_base, basis_matched = resolve_basis(raw_base) if raw_base not in ("", "NONE") else ("", False)
         basis_unknown = raw_base in ("", "NONE") or not basis_matched
@@ -844,6 +918,32 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         close_button.clicked.connect(dialog.close)
         layout.addWidget(close_button)
 
+        dialog.exec()
+
+    def open_scan_dialog(self):
+        if not self.current_atoms:
+            QMessageBox.information(self, "No geometry", "Load a geometry first.")
+            return
+        if not self.last_conversion:
+            QMessageBox.information(
+                self, "No conversion",
+                "Run a conversion first (Edit > Conversion Dialog) so the\n"
+                "scan knows which method, basis and parameters to use.")
+            return
+
+        from view.scandialog import ScanDialog
+
+        conv = dict(self.last_conversion)
+        conv.setdefault("control_options", [])
+        conv.setdefault("output_options", [])
+
+        dialog = ScanDialog(
+            atoms=self.current_atoms,
+            conversion_state=conv,
+            parent=self,
+            particles=self.extra_particles,
+        )
+        ScanDialog.plotter_background = GeometryDialogStudy.plotter_background
         dialog.exec()
 
     def open_geometry_editor(self):
@@ -1266,6 +1366,133 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         env["PATH"] = path
 
         return env
+
+    def run_batch_scan(self):
+        """Run a batch of .lowdin scan files sequentially."""
+        from PyQt6.QtWidgets import QProgressDialog
+        from PyQt6.QtCore import QCoreApplication
+
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select directory containing scan files")
+        if not directory:
+            return
+
+        lowdin_files = sorted(
+            f for f in os.listdir(directory)
+            if f.lower().endswith(".lowdin")
+        )
+        if not lowdin_files:
+            QMessageBox.information(
+                self, "No files",
+                "No .lowdin files found in the selected directory.")
+            return
+
+        reply = QMessageBox.question(
+            self, "Run Batch Scan",
+            f"Found {len(lowdin_files)} .lowdin files in:\n{directory}\n\n"
+            f"Run them all sequentially?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            env = self._lowdin_env()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to set up environment:\n{e}")
+            return
+
+        progress = QProgressDialog(
+            "Running scan calculations...", "Cancel", 0, len(lowdin_files), self)
+        progress.setWindowTitle("Batch Scan")
+        progress.setMinimumDuration(0)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+
+        results = []
+        failed = 0
+
+        for i, filename in enumerate(lowdin_files):
+            if progress.wasCanceled():
+                results.append(f"--- CANCELLED at file {i}/{len(lowdin_files)} ---")
+                break
+
+            progress.setValue(i)
+            progress.setLabelText(f"Running {filename}\n({i+1} of {len(lowdin_files)})")
+            QCoreApplication.processEvents()
+
+            filepath = os.path.join(directory, filename)
+            basename = os.path.splitext(filename)[0]
+            run_dir = os.path.join(directory, basename)
+            os.makedirs(run_dir, exist_ok=True)
+
+            # Copy input to its own subdirectory
+            target_input = os.path.join(run_dir, filename)
+            try:
+                import shutil
+                shutil.copy2(filepath, target_input)
+            except Exception as e:
+                results.append(f"[FAIL] {filename}: could not copy: {e}")
+                failed += 1
+                continue
+
+            try:
+                result = subprocess.run(
+                    ["openlowdin", "-i", filename],
+                    cwd=run_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                    env=env,
+                )
+
+                out_file = os.path.join(run_dir, basename + ".out")
+                status = "OK" if result.returncode == 0 else f"EXIT {result.returncode}"
+
+                energy = ""
+                if os.path.exists(out_file):
+                    try:
+                        with open(out_file) as f:
+                            for line in f:
+                                if "TOTAL ENERGY" in line.upper():
+                                    energy = line.strip()
+                    except Exception:
+                        pass
+
+                entry = f"[{status}] {filename}"
+                if energy:
+                    entry += f"  ->  {energy}"
+                results.append(entry)
+
+                if result.returncode != 0:
+                    failed += 1
+
+            except subprocess.TimeoutExpired:
+                results.append(f"[TIMEOUT] {filename}")
+                failed += 1
+            except FileNotFoundError:
+                QMessageBox.critical(
+                    self, "Error",
+                    "openlowdin command not found.\n\n"
+                    "Make sure LOWDIN is installed and in your PATH.")
+                break
+            except Exception as e:
+                results.append(f"[ERROR] {filename}: {e}")
+                failed += 1
+
+        progress.setValue(len(lowdin_files))
+
+        summary = (
+            f"Batch scan complete: {len(lowdin_files)} files, "
+            f"{len(lowdin_files) - failed} succeeded, {failed} failed.\n"
+            f"Results in subdirectories of: {directory}\n\n"
+            + "\n".join(results)
+        )
+
+        if hasattr(self, 'output_textedit'):
+            self.output_textedit.setPlainText(summary)
+            self.tabWidget.setCurrentIndex(2)
+        else:
+            QMessageBox.information(self, "Batch Results", summary[:2000])
 
     def run_lowdin(self):
         """Run LOWDIN calculation in an isolated directory."""
