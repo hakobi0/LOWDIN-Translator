@@ -342,12 +342,30 @@ class GeometryDialogStudy(QDialog):
         progress.setCancelButton(None)
         progress.show()
 
+        # Scale iterations with molecule size; floor 2000, cap 10000
+        n_atoms = len(self.geometry_editor.get_geometry())
+        max_iters = min(max(2000, n_atoms * 50), 10000)
+
         # Run optimization
         result = self.geometry_editor.optimize_geometry(
             charge=charge,
             method=method,
-            max_iters=200,
+            max_iters=max_iters,
         )
+
+        # If MMFF failed (no parameters for some elements), fall back to UFF
+        if not result["success"] and method == "MMFF":
+            mmff_msg = result["message"]
+            result = self.geometry_editor.optimize_geometry(
+                charge=charge,
+                method="UFF",
+                max_iters=max_iters,
+            )
+            if result["success"]:
+                result["message"] = (
+                    f"MMFF not available ({mmff_msg}), fell back to UFF.\n"
+                    + result["message"]
+                )
 
         progress.close()
 
@@ -405,6 +423,7 @@ class GeometryDialogStudy(QDialog):
 
         # Transform actions
         menu.addAction("Center at Origin").triggered.connect(self._center_at_origin)
+        menu.addAction("Standard Orientation (Principal Axes)").triggered.connect(self._set_standard_orientation)
         menu.addAction("Show Center of Mass").triggered.connect(self._show_center_of_mass)
 
         menu.addAction("Translate...").triggered.connect(self._translate_geometry)
@@ -414,6 +433,10 @@ class GeometryDialogStudy(QDialog):
         plane_menu.addAction("XY Plane").triggered.connect(lambda: self._set_coordinates_to_plane("xy"))
         plane_menu.addAction("XZ Plane").triggered.connect(lambda: self._set_coordinates_to_plane("xz"))
         plane_menu.addAction("YZ Plane").triggered.connect(lambda: self._set_coordinates_to_plane("yz"))
+
+        menu.addSeparator()
+
+        menu.addAction("Rigid Scan...").triggered.connect(self._open_scan_from_editor)
 
         menu.addSeparator()
 
@@ -427,6 +450,13 @@ class GeometryDialogStudy(QDialog):
         if not self.geometry_editor.get_geometry():
             return
         self.geometry_editor.set_coordinates_to_center()
+        self._redraw()
+
+    def _set_standard_orientation(self):
+        if not self.geometry_editor.get_geometry():
+            QMessageBox.information(self, "No atoms", "Load geometry first.")
+            return
+        self.geometry_editor.set_standard_orientation()
         self._redraw()
 
     def _transform_scope_label(self):
@@ -574,3 +604,42 @@ class GeometryDialogStudy(QDialog):
         layout.addWidget(close_button)
 
         dialog.exec()
+
+    def _open_scan_from_editor(self):
+        atoms = self.geometry_editor.get_geometry()
+        if not atoms:
+            QMessageBox.information(self, "No atoms", "Load geometry first.")
+            return
+
+        main_win = self.parent()
+        if main_win is None or not hasattr(main_win, 'last_conversion'):
+            QMessageBox.information(
+                self, "No conversion",
+                "Run a conversion first so the scan knows which\n"
+                "method, basis and parameters to use.")
+            return
+        if not main_win.last_conversion:
+            QMessageBox.information(
+                self, "No conversion",
+                "Run a conversion first so the scan knows which\n"
+                "method, basis and parameters to use.")
+            return
+
+        from view.scandialog import ScanDialog
+
+        conv = dict(main_win.last_conversion)
+        conv.setdefault("control_options", [])
+        conv.setdefault("output_options", [])
+
+        selected = set(self.geometry_editor.selected_indices)
+        particles = self.geometry_editor.get_particles()
+
+        scan_dialog = ScanDialog(
+            atoms=atoms,
+            conversion_state=conv,
+            parent=self,
+            particles=particles,
+            selected_indices=selected if selected else None,
+        )
+        ScanDialog.plotter_background = GeometryDialogStudy.plotter_background
+        scan_dialog.exec()

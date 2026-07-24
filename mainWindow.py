@@ -498,7 +498,17 @@ class ConversionDialogStudy(QDialog, Ui_Dialog):
         if hasattr(self, 'wfx_checkBox') and self.wfx_checkBox.isChecked():
             opts.append("wfxFile")
         if hasattr(self, 'NB047_checkBox') and self.NB047_checkBox.isChecked():
-            opts.append("NB047File")
+            opts.append("NBO47File")
+        if hasattr(self, 'fchk_checkBox') and self.fchk_checkBox.isChecked():
+            opts.append("fchkFile")
+        if hasattr(self, 'orbitalCube_checkBox') and self.orbitalCube_checkBox.isChecked():
+            opts.append("orbitalCube")
+        if hasattr(self, 'densityCube_checkBox') and self.densityCube_checkBox.isChecked():
+            opts.append("densityCube")
+        if hasattr(self, 'orbitalPlot_checkBox') and self.orbitalPlot_checkBox.isChecked():
+            opts.append("orbitalPlot")
+        if hasattr(self, 'densityPlot_checkBox') and self.densityPlot_checkBox.isChecked():
+            opts.append("densityPlot")
         return opts
 
     def _filter_control_options(self, method_text=None):
@@ -1368,9 +1378,11 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         return env
 
     def run_batch_scan(self):
-        """Run a batch of .lowdin scan files sequentially."""
+        """Run a batch of .lowdin scan files sequentially with full analysis."""
         from PyQt6.QtWidgets import QProgressDialog
         from PyQt6.QtCore import QCoreApplication
+        import shutil
+        import math
 
         directory = QFileDialog.getExistingDirectory(
             self, "Select directory containing scan files")
@@ -1408,12 +1420,15 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
         progress.setMinimumDuration(0)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
 
-        results = []
+        scan_data = []
         failed = 0
 
         for i, filename in enumerate(lowdin_files):
             if progress.wasCanceled():
-                results.append(f"--- CANCELLED at file {i}/{len(lowdin_files)} ---")
+                scan_data.append({
+                    "step": i, "file": filename, "status": "CANCELLED",
+                    "energy": None, "mp2_energy": None, "geometry": [],
+                })
                 break
 
             progress.setValue(i)
@@ -1425,15 +1440,19 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
             run_dir = os.path.join(directory, basename)
             os.makedirs(run_dir, exist_ok=True)
 
-            # Copy input to its own subdirectory
             target_input = os.path.join(run_dir, filename)
             try:
-                import shutil
                 shutil.copy2(filepath, target_input)
             except Exception as e:
-                results.append(f"[FAIL] {filename}: could not copy: {e}")
+                scan_data.append({
+                    "step": i, "file": filename, "status": f"COPY_FAIL: {e}",
+                    "energy": None, "mp2_energy": None, "geometry": [],
+                })
                 failed += 1
                 continue
+
+            # Parse geometry from input file (nuclei with "dirac" basis)
+            geometry = self._parse_scan_geometry(filepath)
 
             try:
                 result = subprocess.run(
@@ -1448,26 +1467,25 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                 out_file = os.path.join(run_dir, basename + ".out")
                 status = "OK" if result.returncode == 0 else f"EXIT {result.returncode}"
 
-                energy = ""
+                hf_energy = None
+                mp2_energy = None
                 if os.path.exists(out_file):
-                    try:
-                        with open(out_file) as f:
-                            for line in f:
-                                if "TOTAL ENERGY" in line.upper():
-                                    energy = line.strip()
-                    except Exception:
-                        pass
+                    hf_energy, mp2_energy = self._parse_scan_energies(out_file)
 
-                entry = f"[{status}] {filename}"
-                if energy:
-                    entry += f"  ->  {energy}"
-                results.append(entry)
+                scan_data.append({
+                    "step": i, "file": filename, "status": status,
+                    "energy": hf_energy, "mp2_energy": mp2_energy,
+                    "geometry": geometry,
+                })
 
                 if result.returncode != 0:
                     failed += 1
 
             except subprocess.TimeoutExpired:
-                results.append(f"[TIMEOUT] {filename}")
+                scan_data.append({
+                    "step": i, "file": filename, "status": "TIMEOUT",
+                    "energy": None, "mp2_energy": None, "geometry": geometry,
+                })
                 failed += 1
             except FileNotFoundError:
                 QMessageBox.critical(
@@ -1476,23 +1494,271 @@ class MainWindowStudy(QMainWindow, Ui_MainWindow):
                     "Make sure LOWDIN is installed and in your PATH.")
                 break
             except Exception as e:
-                results.append(f"[ERROR] {filename}: {e}")
+                scan_data.append({
+                    "step": i, "file": filename, "status": f"ERROR: {e}",
+                    "energy": None, "mp2_energy": None, "geometry": geometry,
+                })
                 failed += 1
 
         progress.setValue(len(lowdin_files))
 
-        summary = (
-            f"Batch scan complete: {len(lowdin_files)} files, "
-            f"{len(lowdin_files) - failed} succeeded, {failed} failed.\n"
-            f"Results in subdirectories of: {directory}\n\n"
-            + "\n".join(results)
-        )
+        summary = self._format_scan_summary(scan_data, directory, failed)
 
         if hasattr(self, 'output_textedit'):
             self.output_textedit.setPlainText(summary)
             self.tabWidget.setCurrentIndex(2)
         else:
             QMessageBox.information(self, "Batch Results", summary[:2000])
+
+    def _parse_scan_geometry(self, lowdin_path):
+        """Extract nuclear positions from a .lowdin input (lines with 'dirac')."""
+        geometry = []
+        in_geometry = False
+        try:
+            with open(lowdin_path) as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.upper() == "GEOMETRY":
+                        in_geometry = True
+                        continue
+                    if stripped.upper().startswith("END GEOMETRY"):
+                        break
+                    if in_geometry and stripped:
+                        parts = stripped.split()
+                        if len(parts) >= 5 and parts[1].lower() == "dirac":
+                            sym = parts[0]
+                            x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
+                            geometry.append((sym, x, y, z))
+        except Exception:
+            pass
+        return geometry
+
+    def _parse_scan_energies(self, out_path):
+        """
+        Parse a LOWDIN .out file for HF/DFT total energy and MP2 energy.
+        Returns (hf_energy, mp2_energy) as floats or None.
+        """
+        hf_energy = None
+        mp2_energy = None
+        try:
+            with open(out_path) as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.startswith("TOTAL ENERGY") and "=" in stripped:
+                        parts = stripped.split("=")
+                        try:
+                            hf_energy = float(parts[-1].strip())
+                        except ValueError:
+                            pass
+                    elif "E(MP2)" in stripped and "=" in stripped:
+                        parts = stripped.split("=")
+                        try:
+                            mp2_energy = float(parts[-1].strip())
+                        except ValueError:
+                            pass
+        except Exception:
+            pass
+        return hf_energy, mp2_energy
+
+    def _format_scan_summary(self, scan_data, directory, failed):
+        """Build a detailed scan results summary string."""
+        import math
+
+        n_total = len(scan_data)
+        succeeded = n_total - failed
+
+        has_mp2 = any(d["mp2_energy"] is not None for d in scan_data)
+        use_mp2 = has_mp2
+
+        # Determine which atoms moved between steps
+        moving_atoms_info = self._detect_moving_atoms(scan_data)
+
+        # Header
+        lines = []
+        lines.append("=" * 78)
+        lines.append("  RIGID SCAN RESULTS SUMMARY")
+        lines.append("=" * 78)
+        lines.append(f"  Directory: {directory}")
+        lines.append(f"  Steps: {n_total} total, {succeeded} converged, {failed} failed")
+        if use_mp2:
+            lines.append("  Energy level: MP2")
+        lines.append("")
+
+        # Moving atoms analysis
+        if moving_atoms_info:
+            lines.append("-" * 78)
+            lines.append("  MOVING ATOMS DETECTED")
+            lines.append("-" * 78)
+            for sym, idx, axis_str in moving_atoms_info:
+                lines.append(f"    Atom {idx+1} ({sym}) -- moving along {axis_str}")
+            lines.append("")
+
+        # Energy table
+        lines.append("-" * 78)
+        e_label = "E(MP2) / Eh" if use_mp2 else "E(HF/DFT) / Eh"
+        lines.append(f"  {'Step':<6}{'Status':<10}{e_label:<22}{'dE / Eh':<16}{'dE / eV':<14}{'File'}")
+        lines.append("-" * 78)
+
+        energies = []
+        for d in scan_data:
+            e = d["mp2_energy"] if use_mp2 else d["energy"]
+            energies.append(e)
+
+        ref_energy = None
+        for e in energies:
+            if e is not None:
+                ref_energy = e
+                break
+
+        for i, d in enumerate(scan_data):
+            step_str = str(d["step"])
+            status = d["status"]
+            e = energies[i]
+
+            if e is not None:
+                e_str = f"{e:.10f}"
+                if ref_energy is not None:
+                    de = e - ref_energy
+                    de_ev = de * 27.211386
+                    de_str = f"{de:+.8f}"
+                    de_ev_str = f"{de_ev:+.6f}"
+                else:
+                    de_str = "---"
+                    de_ev_str = "---"
+            else:
+                e_str = "---"
+                de_str = "---"
+                de_ev_str = "---"
+
+            lines.append(f"  {step_str:<6}{status:<10}{e_str:<22}{de_str:<16}{de_ev_str:<14}{d['file']}")
+
+        lines.append("-" * 78)
+
+        # Step size table (coordinate changes between consecutive frames)
+        geom_lines = self._format_step_sizes(scan_data)
+        if geom_lines:
+            lines.append("")
+            lines.extend(geom_lines)
+
+        # Statistics
+        valid_energies = [e for e in energies if e is not None]
+        if valid_energies:
+            e_min = min(valid_energies)
+            e_max = max(valid_energies)
+            min_idx = energies.index(e_min)
+            lines.append("")
+            lines.append("-" * 78)
+            lines.append("  SUMMARY STATISTICS")
+            lines.append("-" * 78)
+            lines.append(f"    Minimum energy: {e_min:.10f} Eh  (step {min_idx})")
+            lines.append(f"    Maximum energy: {e_max:.10f} Eh")
+            lines.append(f"    Energy range:   {(e_max - e_min):.10f} Eh "
+                         f"({(e_max - e_min) * 27.211386:.6f} eV)")
+            if len(valid_energies) > 1:
+                lines.append(f"    Energy at step 0 taken as reference (dE = 0)")
+            lines.append("")
+
+        lines.append("=" * 78)
+        return "\n".join(lines)
+
+    def _detect_moving_atoms(self, scan_data):
+        """Compare geometry between first and last frame to detect which atoms moved."""
+        geoms = [d["geometry"] for d in scan_data if d["geometry"]]
+        if len(geoms) < 2:
+            return []
+
+        first = geoms[0]
+        last = geoms[-1]
+        if len(first) != len(last):
+            return []
+
+        moving = []
+        for i, ((s1, x1, y1, z1), (s2, x2, y2, z2)) in enumerate(zip(first, last)):
+            dx = abs(x2 - x1)
+            dy = abs(y2 - y1)
+            dz = abs(z2 - z1)
+            if dx > 1e-6 or dy > 1e-6 or dz > 1e-6:
+                axes = []
+                if dx > 1e-6:
+                    axes.append("X")
+                if dy > 1e-6:
+                    axes.append("Y")
+                if dz > 1e-6:
+                    axes.append("Z")
+                moving.append((s1, i, ", ".join(axes)))
+
+        return moving
+
+    def _format_step_sizes(self, scan_data):
+        """Build a table showing coordinate changes per step for moving atoms."""
+        import math
+
+        geoms = [d["geometry"] for d in scan_data if d["geometry"]]
+        if len(geoms) < 2:
+            return []
+
+        first = geoms[0]
+        if not first:
+            return []
+
+        # Find which atom indices moved
+        last = geoms[-1]
+        if len(first) != len(last):
+            return []
+
+        moving_indices = []
+        for i, ((s1, x1, y1, z1), (_, x2, y2, z2)) in enumerate(zip(first, last)):
+            dist = math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+            if dist > 1e-6:
+                moving_indices.append(i)
+
+        if not moving_indices:
+            return []
+
+        lines = []
+        lines.append("-" * 78)
+        lines.append("  STEP SIZE (coordinate changes per step for moving atoms)")
+        lines.append("-" * 78)
+
+        # Show step-by-step displacement for the first moving atom (representative)
+        rep_idx = moving_indices[0]
+        rep_sym = first[rep_idx][0]
+
+        lines.append(f"  Reference atom: {rep_sym} (atom {rep_idx+1})")
+        lines.append(f"  {'Step':<6}{'X / Ang':<14}{'Y / Ang':<14}{'Z / Ang':<14}"
+                     f"{'dX':<10}{'dY':<10}{'dZ':<10}{'|dr|'}")
+        lines.append("  " + "-" * 74)
+
+        for frame_i in range(len(geoms)):
+            g = geoms[frame_i]
+            if rep_idx >= len(g):
+                break
+            _, x, y, z = g[rep_idx]
+            if frame_i == 0:
+                lines.append(f"  {frame_i:<6}{x:<14.6f}{y:<14.6f}{z:<14.6f}"
+                             f"{'---':<10}{'---':<10}{'---':<10}---")
+            else:
+                _, xp, yp, zp = geoms[frame_i - 1][rep_idx]
+                ddx = x - xp
+                ddy = y - yp
+                ddz = z - zp
+                dr = math.sqrt(ddx**2 + ddy**2 + ddz**2)
+                lines.append(f"  {frame_i:<6}{x:<14.6f}{y:<14.6f}{z:<14.6f}"
+                             f"{ddx:<+10.6f}{ddy:<+10.6f}{ddz:<+10.6f}{dr:.6f}")
+
+        if len(moving_indices) > 1:
+            lines.append("")
+            total_displacement = []
+            for idx in moving_indices:
+                _, x0, y0, z0 = first[idx]
+                _, xf, yf, zf = last[idx]
+                dist = math.sqrt((xf-x0)**2 + (yf-y0)**2 + (zf-z0)**2)
+                total_displacement.append((first[idx][0], idx, dist))
+            lines.append(f"  Total displacement (first -> last frame):")
+            for sym, idx, dist in total_displacement:
+                lines.append(f"    Atom {idx+1} ({sym}): {dist:.6f} Ang")
+
+        return lines
 
     def run_lowdin(self):
         """Run LOWDIN calculation in an isolated directory."""

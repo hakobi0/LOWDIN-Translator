@@ -122,19 +122,17 @@ def suggest_method(current_method, atoms, charge, multiplicity):
             )
 
     elif current_method in DFT_FUNCTIONALS:
-        # B3LYP etc. need to become RKS or UKS
         corrected = "UKS" if open_shell else "RKS"
         warnings.append(
-            f"DFT functional {current_method} mapped to {corrected}. "
-            f"Select the functional separately in the LOWDIN input if needed."
+            f"DFT functional {current_method} → method={corrected} "
+            f"with electronExchangeCorrelationFunctional=\"{current_method}\"."
         )
 
     elif current_method in MP2_METHODS:
         corrected = current_method
         if open_shell:
             warnings.append(
-                "MP2 with open-shell systems requires UHF reference. "
-                "Make sure to set the method to UHF before running MP2."
+                "MP2 with open-shell system: UHF reference will be used automatically."
             )
 
     else:

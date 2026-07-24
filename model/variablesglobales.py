@@ -433,12 +433,18 @@ CONTROL_OPTIONS = [
     {"name": "CILoadEigenVector", "type": "logical",
      "values": [".true.", ".false."], "category": "CI", "methods": _HF},
 
+    # --- Outputs (CONTROL options that affect output files) ---
+    {"name": "moldenFileFormat", "type": "character",
+     "values": ["STANDARD", "QUANTUM", "MIXED"], "category": "Outputs", "methods": _ALL},
+
     # --- Miscellaneous ---
     {"name": "MOFractionOccupation", "type": "float",
      "values": ["1.0", "0.5", "0.0"], "category": "Miscellaneous", "methods": _SCF},
     {"name": "ionizeMO", "type": "integer",
      "values": ["0", "1", "2", "3"], "category": "Miscellaneous", "methods": _SCF},
     {"name": "ionizeSpecies", "type": "character",
+     "values": ["NONE", "E-ALPHA", "E-BETA", "E-"], "category": "Miscellaneous", "methods": _SCF},
+    {"name": "exciteSpecies", "type": "character",
      "values": ["NONE", "E-ALPHA", "E-BETA", "E-"], "category": "Miscellaneous", "methods": _SCF},
 
 ]

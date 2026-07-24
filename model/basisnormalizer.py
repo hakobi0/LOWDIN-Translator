@@ -22,12 +22,43 @@ Examples:
 
 import re
 from model.variablesglobales import valid_basis
+from model.basisclassifier import default_basis_dir, all_basis_names
 
 
 def _normalize(name: str) -> str:
     """Strip punctuation (except +), uppercase."""
     stripped = re.sub(r"[-.()\s,/*]", "", name)
     return stripped.upper()
+
+
+# Normalized index of the basis files actually present in the LOWDIN library:
+#   normalized_name -> real on-disk file name
+# This lets us recognize the hundreds of installed basis sets that are not in
+# the curated valid_basis dict. It is filled lazily (on first use) from disk, or
+# authoritatively by set_available_basis() when the app has already discovered
+# the installed bases at start-up.
+_AVAILABLE_NORM_TO_NAME: dict[str, str] | None = None
+
+
+def set_available_basis(names) -> None:
+    """
+    Register the authoritative list of installed basis names (as discovered at
+    start-up). Overrides the lazy on-disk scan so validation matches the user's
+    real installation and any config-cached bases.
+    """
+    global _AVAILABLE_NORM_TO_NAME
+    index: dict[str, str] = {}
+    for name in names:
+        index.setdefault(_normalize(name), name)
+    _AVAILABLE_NORM_TO_NAME = index
+
+
+def _available_basis() -> dict[str, str]:
+    """Return the normalized index of installed bases, scanning disk on first use."""
+    global _AVAILABLE_NORM_TO_NAME
+    if _AVAILABLE_NORM_TO_NAME is None:
+        set_available_basis(all_basis_names(default_basis_dir()))
+    return _AVAILABLE_NORM_TO_NAME
 
 
 # Build normalized lookup at import time:
@@ -68,12 +99,19 @@ def resolve_basis(name: str) -> tuple[str, bool]:
     if name in valid_basis:
         return valid_basis[name], True
 
-    # 2. Normalized match
+    # 2. Normalized match against the curated ORCA/Gaussian <-> LOWDIN table
     norm = _normalize(name)
     if norm in _NORMALIZED_TO_LOWDIN:
         return _NORMALIZED_TO_LOWDIN[norm], True
 
-    # 3. No match — return uppercased name and flag as unknown
+    # 3. Match against the basis sets actually installed in the LOWDIN library.
+    #    Return the real on-disk file name so the spelling is exactly what
+    #    LOWDIN expects.
+    available = _available_basis()
+    if norm in available:
+        return available[norm], True
+
+    # 4. No match — return uppercased name and flag as unknown
     return name.upper(), False
 
 
@@ -89,8 +127,8 @@ def validate_basis(name: str) -> dict:
 
     if not matched:
         warning = (
-            f'Basis "{name}" was not found in the LOWDIN basis library. '
-            f'It will be passed as "{resolved}" — verify it is available in your LOWDIN installation.'
+            f'Basis "{name}" was not found in your installed LOWDIN basis library. '
+            f'It will be passed as "{resolved}" — check the name or that the basis is installed.'
         )
 
     return {

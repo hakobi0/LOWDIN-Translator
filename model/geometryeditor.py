@@ -338,6 +338,85 @@ class GeometryEditor:
         self.geometry = relative_geometry
         return relative_geometry
 
+    def set_standard_orientation(self):
+        """
+        Reorient the molecule into its principal axes of inertia (standard
+        orientation), the way Gabedit's "Set the axes in the principal axes"
+        and Gaussian's standard orientation do.
+
+        Steps:
+          1. Translate so the mass-weighted center of mass is at the origin.
+          2. Build the 3x3 mass-weighted inertia tensor.
+          3. Diagonalize it; the eigenvectors are the principal axes and the
+             eigenvalues are the principal moments of inertia (ascending).
+          4. Rotate every atom into that frame so the axis of smallest moment
+             of inertia lies along X and the largest along Z. For a linear
+             molecule this puts the molecular axis on X; for a planar molecule
+             it lays the molecule flat in the XY plane.
+
+        The rotation is forced to be proper (determinant +1) so the molecule is
+        never mirrored, preserving chirality. Particles are carried along by the
+        same translation and rotation.
+
+        Returns the new geometry list.
+        """
+        if not self.geometry:
+            return self.geometry
+
+        self._save_undo()
+
+        coords = np.array([[x, y, z] for _, x, y, z in self.geometry], dtype=float)
+        masses = np.array(
+            [ATOMIC_WEIGHT.get(s, 1.0) for s, _, _, _ in self.geometry], dtype=float
+        )
+
+        # 1. center of mass to origin
+        com = (masses[:, None] * coords).sum(axis=0) / masses.sum()
+        coords -= com
+
+        # 2. mass-weighted inertia tensor
+        inertia = np.zeros((3, 3))
+        for m, (x, y, z) in zip(masses, coords):
+            inertia[0, 0] += m * (y * y + z * z)
+            inertia[1, 1] += m * (x * x + z * z)
+            inertia[2, 2] += m * (x * x + y * y)
+            inertia[0, 1] -= m * x * y
+            inertia[0, 2] -= m * x * z
+            inertia[1, 2] -= m * y * z
+        inertia[1, 0] = inertia[0, 1]
+        inertia[2, 0] = inertia[0, 2]
+        inertia[2, 1] = inertia[1, 2]
+
+        # 3. principal axes: eigh gives ascending eigenvalues and orthonormal
+        #    eigenvectors as columns
+        _, axes = np.linalg.eigh(inertia)
+
+        # Force a proper rotation (no reflection) so chirality is preserved
+        if np.linalg.det(axes) < 0:
+            axes[:, -1] *= -1
+
+        # Rows of `rot` are the principal axes, so new = rot @ old expresses each
+        # point in the principal-axis frame (smallest-moment axis -> X)
+        rot = axes.T
+
+        new_coords = coords @ rot.T
+        self.geometry = [
+            (s, float(nc[0]), float(nc[1]), float(nc[2]))
+            for (s, _, _, _), nc in zip(self.geometry, new_coords)
+        ]
+
+        if self.particles:
+            pcoords = np.array(
+                [[x, y, z] for _, x, y, z in self.particles], dtype=float
+            )
+            pcoords = (pcoords - com) @ rot.T
+            self.particles = [
+                (t, float(nc[0]), float(nc[1]), float(nc[2]))
+                for (t, _, _, _), nc in zip(self.particles, pcoords)
+            ]
+
+        return self.geometry
+
     def _transform_targets(self):
         """
         Return (atom_indices, particle_indices) that a transform should act on:

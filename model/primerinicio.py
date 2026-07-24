@@ -1,6 +1,8 @@
 from pathlib import Path
 import os
 
+from model.basisclassifier import electronic_basis_names
+
 class PrimerInicio:
 
     def __init__(self): # verificación inicial
@@ -59,7 +61,16 @@ class PrimerInicio:
 
         # 4. combinar y eliminar duplicados
         self.bases_finales = list(set(bases_existentes + bases_nuevas))
-        self.basis = self.bases_finales
+        self.all_basis = self.bases_finales
+
+        # 4b. la lista electronica (para el desplegable de base electronica) se
+        #     clasifica por contenido: solo bases electronicas, sin positronicas,
+        #     nucleares ni muonicas
+        self.basis = electronic_basis_names(ruta)
+        if not self.basis:
+            # si la clasificacion no encontro nada (formato inesperado), no
+            # dejar el desplegable vacio: usar la lista completa como respaldo
+            self.basis = self.bases_finales
 
         # 5. reconstruir contenido del archivo
         nuevas_lineas = []
@@ -82,4 +93,3 @@ class PrimerInicio:
 
 
 init = PrimerInicio()
-print(init)
